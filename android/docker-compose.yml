@@ -4,7 +4,7 @@ services:
       context: .
       dockerfile: Dockerfile
     volumes:
-      - gradle-cache:/home/dev/.gradle
+      - dev-home:/home/dev      # persists credentials, AVD, gradle cache across runs
       - ./patches:/output
     devices:
       - /dev/kvm
@@ -14,4 +14,6 @@ services:
     tty: true
 
 volumes:
-  gradle-cache:
+  dev-home:
+    external: true
+    name: wcd_dev-home
