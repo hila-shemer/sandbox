@@ -1,0 +1,17 @@
+services:
+  wcd-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      # Mount source code so edits are live
+      - ./app/src:/app/app/src
+      # Persist Gradle cache across container restarts
+      - gradle-cache:/root/.gradle
+    devices:
+      - /dev/kvm
+    stdin_open: true
+    tty: true
+
+volumes:
+  gradle-cache:
