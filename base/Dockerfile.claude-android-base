@@ -9,7 +9,11 @@ RUN apt-get update && apt-get install -y \
     ripgrep build-essential cmake \
     python3 python3-pip \
     less file findutils \
+    nodejs npm \
     && rm -rf /var/lib/apt/lists/*
+
+# Claude Code
+RUN npm install -g @anthropic-ai/claude-code
 
 ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
 ENV ANDROID_HOME=/opt/android-sdk

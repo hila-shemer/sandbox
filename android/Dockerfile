@@ -39,6 +39,11 @@ RUN chmod +x gradlew && \
 
 # --- Source code (changes frequently) ---
 COPY --chown=dev:dev . .
+# .claude gets caught by the above COPY but belongs in home, not the workspace
+RUN rm -rf /app/.claude
+
+# --- Claude Code credentials (project-specific, never committed to git) ---
+COPY --chown=dev:dev .claude/ /home/dev/.claude/
 
 COPY --chown=dev:dev entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
