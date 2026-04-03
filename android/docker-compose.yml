@@ -10,6 +10,8 @@ services:
       - gradle-cache:/root/.gradle
     devices:
       - /dev/kvm
+    security_opt:
+      - label:disable  # SELinux labeling disabled: container storage lives on /home (bind mount)
     stdin_open: true
     tty: true
 
