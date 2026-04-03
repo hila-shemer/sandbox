@@ -40,4 +40,8 @@ RUN chmod +x gradlew && \
 # --- Source code (changes frequently) ---
 COPY --chown=dev:dev . .
 
+COPY --chown=dev:dev entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]
 CMD ["/bin/bash"]

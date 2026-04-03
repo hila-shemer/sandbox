@@ -4,10 +4,8 @@ services:
       context: .
       dockerfile: Dockerfile
     volumes:
-      # Mount source code so edits are live
-      - ./app/src:/app/app/src
-      # Persist Gradle cache across container restarts
-      - gradle-cache:/root/.gradle
+      - gradle-cache:/home/dev/.gradle
+      - ./patches:/output
     devices:
       - /dev/kvm
     security_opt:
