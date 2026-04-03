@@ -1,0 +1,26 @@
+FROM ubuntu:24.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y \
+    curl git unzip wget \
+    openjdk-17-jdk-headless \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+ENV ANDROID_HOME=/opt/android-sdk
+ENV PATH="${PATH}:${ANDROID_HOME}/cmdline-tools/latest/bin:${ANDROID_HOME}/platform-tools"
+
+# Android SDK command-line tools
+RUN mkdir -p ${ANDROID_HOME}/cmdline-tools && \
+    cd ${ANDROID_HOME}/cmdline-tools && \
+    wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O tools.zip && \
+    unzip -q tools.zip && \
+    mv cmdline-tools latest && \
+    rm tools.zip
+
+# Android platforms and build tools
+RUN yes | sdkmanager --licenses > /dev/null 2>&1 && \
+    sdkmanager \
+    "platforms;android-34" \
+    "build-tools;34.0.0" \
+    "platform-tools"
