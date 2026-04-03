@@ -6,6 +6,7 @@ services:
     volumes:
       - dev-home:/home/dev      # persists credentials, AVD, gradle cache across runs
       - ./patches:/output
+      - ${HOME}/.claude:/host-claude:ro
     devices:
       - /dev/kvm
     security_opt:
