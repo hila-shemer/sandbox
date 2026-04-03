@@ -1,5 +1,11 @@
 FROM ghcr.io/hila-shemer/android-dev:latest
 
+# Create AVD (project-specific: API 34, pixel_6 profile)
+RUN echo "no" | avdmanager create avd \
+    -n wcd_test \
+    -k "system-images;android-34;google_apis;x86_64" \
+    --device "pixel_6"
+
 WORKDIR /app
 
 # Copy only build files first (dependency cache layer)
