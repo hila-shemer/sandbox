@@ -17,12 +17,15 @@ RUN if getent passwd ${HOST_UID} > /dev/null; then \
     fi && \
     mkdir -p /app && chown dev:dev /app
 
+# Install the ATD (Automated Test Device) system image — lightweight, headless-friendly
+RUN sdkmanager --install "system-images;android-34;aosp_atd;x86_64"
+
 USER dev
 
 # Create AVD as dev user (written to /home/dev/.android)
 RUN echo "no" | avdmanager create avd \
     -n wcd_test \
-    -k "system-images;android-34;google_apis;x86_64" \
+    -k "system-images;android-34;aosp_atd;x86_64" \
     --device "pixel_6"
 
 # --- Dependency cache layer (rebuild only when build files change) ---
