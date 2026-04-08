@@ -10,6 +10,14 @@ services:
       - ${HOME}/.claude:/host-claude:ro
     devices:
       - /dev/kvm
+      - /dev/dri
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu, utility, compute]
     shm_size: '4g'
     mem_limit: 24g
     security_opt:
@@ -17,6 +25,23 @@ services:
       - seccomp:unconfined
     stdin_open: true
     tty: true
+
+  emulator:
+    image: wcd-emulator
+    build:
+      context: .
+      dockerfile: Dockerfile.emulator
+    devices:
+      - /dev/kvm
+    shm_size: '4g'
+    mem_limit: 8g
+    security_opt:
+      - label:disable
+      - seccomp:unconfined
+    ports:
+      - "5555:5555"     # ADB
+      - "8554:8554"     # gRPC
+    # Connect from wcd-dev or host: adb connect emulator:5555
 
 volumes:
   dev-home:
