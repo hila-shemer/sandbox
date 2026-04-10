@@ -8,6 +8,8 @@ services:
       - dev-home:/home/dev      # persists credentials, AVD, gradle cache across runs
       - ./patches:/output
       - ${HOME}/.claude:/host-claude:ro
+    environment:
+      - ADB_TARGET=cuttlefish:6520
     devices:
       - /dev/kvm
       - /dev/dri
@@ -25,23 +27,27 @@ services:
       - seccomp:unconfined
     stdin_open: true
     tty: true
+    depends_on:
+      cuttlefish:
+        condition: service_healthy
 
-  emulator:
-    image: wcd-emulator
-    build:
-      context: .
-      dockerfile: Dockerfile.emulator
-    devices:
-      - /dev/kvm
-    shm_size: '4g'
-    mem_limit: 8g
-    security_opt:
-      - label:disable
-      - seccomp:unconfined
+  cuttlefish:
+    image: us-docker.pkg.dev/android-cuttlefish-artifacts/cuttlefish-orchestration/cuttlefish-orchestration:stable
+    privileged: true
+    volumes:
+      - ./entrypoint-cuttlefish.sh:/entrypoint-cuttlefish.sh:ro
+    entrypoint: ["/entrypoint-cuttlefish.sh"]
     ports:
-      - "5555:5555"     # ADB
-      - "8554:8554"     # gRPC
-    # Connect from wcd-dev or host: adb connect emulator:5555
+      - "6520:6520"     # ADB (also reachable as cuttlefish:6520 from other services)
+      - "1443:1443"     # Web UI
+    shm_size: '4g'
+    mem_limit: 16g
+    healthcheck:
+      test: ["CMD-SHELL", "/root/cf_images/bin/adb -s 0.0.0.0:6520 shell getprop sys.boot_completed 2>/dev/null | grep -q 1"]
+      interval: 15s
+      timeout: 10s
+      start_period: 180s
+      retries: 10
 
 volumes:
   dev-home:
