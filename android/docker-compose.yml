@@ -10,9 +10,6 @@ services:
       - ${HOME}/.claude:/host-claude:ro
     environment:
       - ADB_TARGET=cuttlefish:6520
-    devices:
-      - /dev/kvm
-      - /dev/dri
     deploy:
       resources:
         reservations:
@@ -20,7 +17,7 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu, utility, compute]
-    shm_size: '4g'
+    shm_size: '8g'
     mem_limit: 24g
     security_opt:
       - label:disable  # SELinux labeling disabled: container storage lives on /home (bind mount)
@@ -36,12 +33,13 @@ services:
     privileged: true
     volumes:
       - ./entrypoint-cuttlefish.sh:/entrypoint-cuttlefish.sh:ro
+      - cf-images:/root/cf_images
     entrypoint: ["/entrypoint-cuttlefish.sh"]
     ports:
       - "6520:6520"     # ADB (also reachable as cuttlefish:6520 from other services)
       - "1443:1443"     # Web UI
-    shm_size: '4g'
-    mem_limit: 16g
+    shm_size: '2g'
+    mem_limit: 8g
     healthcheck:
       test: ["CMD-SHELL", "/root/cf_images/bin/adb -s 0.0.0.0:6520 shell getprop sys.boot_completed 2>/dev/null | grep -q 1"]
       interval: 15s
@@ -53,3 +51,4 @@ volumes:
   dev-home:
     external: true
     name: wcd_dev-home
+  cf-images:

@@ -1,6 +1,16 @@
-FROM ghcr.io/hila-shemer/android-dev:latest
+# --- Stage 1: extract git-tracked files from build context ---
+# Uses `git ls-files` so the copied tree matches the repo's tracked files
+# (including uncommitted modifications), without hardcoded file lists.
+FROM ghcr.io/hila-shemer/android-dev:latest AS source
+WORKDIR /src
+COPY . /src
+RUN git config --global --add safe.directory /src && \
+    mkdir -p /out && \
+    cd /src && \
+    git ls-files | xargs cp --parents -t /out
 
-# --- Root-level setup ---
+# --- Stage 2: final image ---
+FROM ghcr.io/hila-shemer/android-dev:latest
 
 # Create non-root user matching host UID (keeps volume-mounted file ownership sane)
 ARG HOST_UID=1000
@@ -17,25 +27,12 @@ RUN if getent passwd ${HOST_UID} > /dev/null; then \
     fi && \
     mkdir -p /app && chown dev:dev /app
 
-USER dev
+COPY --from=source --chown=dev:dev /out /app
 
-# --- Dependency cache layer (rebuild only when build files change) ---
+USER dev
 WORKDIR /app
 
-COPY --chown=dev:dev build.gradle.kts settings.gradle.kts gradle.properties ./
-COPY --chown=dev:dev gradle/ gradle/
-COPY --chown=dev:dev gradlew ./
-COPY --chown=dev:dev app/build.gradle.kts app/
-COPY --chown=dev:dev app/src/main/AndroidManifest.xml app/src/main/AndroidManifest.xml
+RUN chmod +x gradlew entrypoint.sh
 
-RUN chmod +x gradlew && \
-    ./gradlew dependencies --no-daemon || true
-
-# --- Source code (changes frequently) ---
-COPY --chown=dev:dev . .
-
-COPY --chown=dev:dev entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
-
-ENTRYPOINT ["/entrypoint.sh"]
+ENTRYPOINT ["/app/entrypoint.sh"]
 CMD ["/bin/bash"]

@@ -10,6 +10,7 @@ RUN apt-get update && apt-get install -y \
     python3 python3-pip \
     less file findutils \
     nodejs npm \
+    vim tmux htop procps jq tree fzf openssh-client iproute2 \
     && rm -rf /var/lib/apt/lists/*
 
 # Claude Code

@@ -7,8 +7,12 @@ CF_DIR="/root/cf_images"
 # Start the orchestration services (original entrypoint)
 /root/run_services.sh &
 
-echo "Fetching Android images ($CF_BUILD)..."
-cvd fetch --default_build="$CF_BUILD" --target_directory="$CF_DIR"
+if [ -z "$(ls -A "$CF_DIR" 2>/dev/null)" ]; then
+    echo "Fetching Android images ($CF_BUILD)..."
+    cvd fetch --default_build="$CF_BUILD" --target_directory="$CF_DIR"
+else
+    echo "Reusing cached Cuttlefish images in $CF_DIR"
+fi
 
 echo "Creating Cuttlefish device..."
 cvd create --host_path="$CF_DIR" --product_path="$CF_DIR"
