@@ -162,6 +162,26 @@ Key considerations:
 - Both Opus roles need filesystem access — they read source files, run tests,
   check git state. Make sure the `claude` CLI invocation preserves tool use.
 
+## Observability
+
+Ralph writes two log files per run:
+
+- `ralph.log` (or `$RALPH_LOG`) — the status log written by the `log()`
+  helper: per-iteration markers and lifecycle events. Accumulates across
+  runs.
+- `ralph-run-<timestamp>.log` (or `$RALPH_RUN_LOG`) — the per-run streaming
+  log. Every `claude -p` invocation's stdout is tee'd to this file, prefixed
+  by a header like `=== [HH:MM:SS] Opus planner cycle 3 ===`.
+
+To watch progress live in another pane:
+
+```bash
+tail -f ralph-run-*.log
+```
+
+`ralph-init.sh` emits its own `ralph-init-<timestamp>.log` alongside the
+generated plan, with the same streaming contract.
+
 ## On Filesystem Access
 
 Both Opus roles (planner and reviewer) are designed to **read actual files and

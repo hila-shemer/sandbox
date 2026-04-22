@@ -16,6 +16,10 @@ set -euo pipefail
 #   OPUS_MODEL    — model to use (default: opus)
 #   CLAUDE_FLAGS  — extra flags passed to `claude` (e.g. in the sandbox
 #                   container this is "--dangerously-skip-permissions")
+#   RALPH_RUN_LOG — per-run streaming log (default: ralph-init-<ts>.log).
+#                   Tail this while the plan is being generated to watch
+#                   Opus's output live:
+#                     tail -f ralph-init-YYYYMMDD-HHMMSS.log
 # ──────────────────────────────────────────────────────────────────────
 
 PROJECT="${1:?Usage: $0 <project_description.md> [output.md]}"
@@ -24,6 +28,7 @@ RALPH_DIR="${RALPH_DIR:-$(cd "$(dirname "$0")" && pwd)}"
 TEMPLATE="$RALPH_DIR/plan_prompt.md"
 OPUS_MODEL="${OPUS_MODEL:-opus}"
 CLAUDE_FLAGS="${CLAUDE_FLAGS:-}"
+RUN_LOG="${RALPH_RUN_LOG:-ralph-init-$(date +%Y%m%d-%H%M%S).log}"
 
 if [ ! -f "$PROJECT" ]; then
     echo "Error: project description not found: $PROJECT" >&2
@@ -34,6 +39,17 @@ if [ ! -f "$TEMPLATE" ]; then
     exit 1
 fi
 
+: > "$RUN_LOG"
+{
+    echo ""
+    echo "=== [$(date '+%H:%M:%S')] Opus plan generation ==="
+} >> "$RUN_LOG"
+
+echo "Streaming claude output → $RUN_LOG (tail -f to watch)"
+
+# tee captures Opus's output to the run log for live tailing while also
+# forwarding it to $OUTPUT. `set -o pipefail` ensures a claude failure
+# propagates through tee.
 awk -v desc="$PROJECT" '
     /<DESCRIBE YOUR PROJECT HERE>/ {
         while ((getline line < desc) > 0) print line
@@ -41,6 +57,8 @@ awk -v desc="$PROJECT" '
         next
     }
     { print }
-' "$TEMPLATE" | claude -p $CLAUDE_FLAGS --model "$OPUS_MODEL" > "$OUTPUT"
+' "$TEMPLATE" \
+    | claude -p $CLAUDE_FLAGS --model "$OPUS_MODEL" \
+    | tee -a "$RUN_LOG" > "$OUTPUT"
 
 echo "Wrote $OUTPUT"
