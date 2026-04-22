@@ -10,6 +10,7 @@ services:
     volumes:
       - claude-loop-home:/home/dev      # persists credentials and shell state across runs
       - ${SANDBOX_DIR}/loop/entrypoint.sh:/entrypoint.sh:ro,z
+      - ${SANDBOX_DIR}/save-patch:/usr/local/bin/save-patch:ro,z
       - ${PROJECT_DIR}/patches:/output:z
       - ${PROJECT_DIR}/.notes:/home/dev/notes:z
       - ${HOME}/.claude:/host-claude:ro,z

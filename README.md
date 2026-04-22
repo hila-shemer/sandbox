@@ -12,7 +12,9 @@ machine. Two variants:
 Both variants bake the target project into `/app` at build time (via `git
 ls-files`), let Claude Code edit and commit inside the container against an
 isolated git history, and expose `./patches` at `/output` for extracting
-artifacts back to the host.
+artifacts back to the host. A `save-patch` helper inside the container exports
+the container's commits since startup as a `git format-patch` series into
+`/output/` for applying on the host with `git am`.
 
 ## Layout
 
@@ -128,7 +130,10 @@ adb devices                     # cuttlefish:6520
 - `cf-images` (managed by compose) — caches Cuttlefish's `cvd fetch` output so
   subsequent starts skip the multi-GB download.
 - `$PROJECT_DIR/patches` → `/output` — bind mount for getting files out of the
-  container.
+  container. Inside the container, `save-patch [name]` exports all commits
+  made since container start (the `baseline` git tag) as a `git format-patch`
+  series into `/output/<name>/`, rolling up any uncommitted work into a final
+  commit first. Apply on the host with `git am /output/<name>/*.patch`.
 - `$PROJECT_DIR/.notes` → `/home/dev/notes` — bind mount for untracked scratch
   files (plan.md, design notes, etc.). Bidirectional; lives outside `/app` so
   the container's git never sees it.

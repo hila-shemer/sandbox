@@ -1,0 +1,35 @@
+#!/bin/bash
+# save-patch [name]
+#
+# Exports the container's delta from the `baseline` tag as a `git format-patch`
+# series under /output/<name>/. Any uncommitted changes (staged, unstaged,
+# untracked) are first rolled up into a final commit so the series is complete.
+# Apply on host with `git am /output/<name>/*.patch`. Name defaults to a
+# timestamp.
+set -e
+
+cd /app
+
+if ! git rev-parse baseline >/dev/null 2>&1; then
+    echo "save-patch: no 'baseline' tag in /app — is this running inside a sandbox container?" >&2
+    exit 1
+fi
+
+name="${1:-$(date +%Y%m%d-%H%M%S)}"
+out="/output/${name}"
+
+# Roll up any uncommitted work into a final commit so format-patch captures it.
+git add -A
+if ! git diff --cached --quiet HEAD; then
+    git commit -q -m "sandbox: uncommitted work at save-patch time"
+fi
+
+if [ "$(git rev-parse baseline)" = "$(git rev-parse HEAD)" ]; then
+    echo "save-patch: no changes beyond baseline; nothing to save."
+    exit 0
+fi
+
+mkdir -p "$out"
+git format-patch baseline..HEAD -o "$out" >/dev/null
+count=$(ls "$out"/*.patch 2>/dev/null | wc -l)
+echo "save-patch: wrote $count patch(es) to $out/"

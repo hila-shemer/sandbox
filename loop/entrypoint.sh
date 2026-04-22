@@ -12,6 +12,27 @@ if [ -d /host-claude ]; then
     done
 fi
 
+# Append sandbox-specific guidance to the user-level CLAUDE.md. Host CLAUDE.md
+# is re-copied each run (above), so this stays deterministic — no drift.
+cat >> /home/dev/.claude/CLAUDE.md <<'EOF'
+
+## Sandbox container conventions
+
+You are running inside a Docker sandbox. Conventions specific to this environment:
+
+- **Emit patches with `save-patch [name]`.** This exports your commits since
+  the `baseline` tag as a `git format-patch` series into `/output/<name>/`,
+  which is bind-mounted to the host. Any uncommitted work (staged, unstaged,
+  untracked) is rolled up into a final commit before export, so nothing is
+  lost. Commit your work semantically as you go — those commit messages land
+  on the host. Apply on host with `git am /output/<name>/*.patch`.
+- **Scratch files live in `/home/dev/notes/`** (bind-mounted to the host). Put
+  plans, design notes, TODOs there. It's outside `/app`, so nothing there
+  appears in patches.
+- **`baseline`** is a git tag on the commit made when the container started.
+  Your delta from it = what you have changed. `git diff baseline` to inspect.
+EOF
+
 # Initialize a fresh git repo from the copied source so the container
 # has a real git history to commit against, isolated from the host repo.
 if [ ! -d /app/.git ]; then
@@ -20,6 +41,7 @@ if [ ! -d /app/.git ]; then
     git -C /app config user.name "Sandbox Container"
     git -C /app add .
     git -C /app commit -q -m "baseline"
+    git -C /app tag baseline
 fi
 
 exec "$@"
