@@ -90,5 +90,15 @@ Sonnet execute it.
 - Do not leave vague guidance like "try a different approach." Be specific
   about what approach and why.
 
+### When the Current Task Itself Is Wrong
+
+If you determine the *current task itself* is wrong — scoped badly, wrong
+approach, depends on something not yet built, or has been invalidated by
+recent changes — do **not** unblock Sonnet to continue executing it. Leave
+`STATUS.md` as `BLOCKED:` with a clear diagnosis of why the task is wrong.
+The planner will pick up on the next outer cycle and rewrite
+`CURRENT_TASK.md`. Unblocking should only happen when the task is correct
+but Sonnet got stuck on execution.
+
 ---
 
