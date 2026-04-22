@@ -16,7 +16,6 @@ services:
     mem_limit: 8g
     security_opt:
       - label:disable  # SELinux labeling disabled: container storage lives on /home (bind mount)
-      - seccomp:unconfined
     stdin_open: true
     tty: true
 

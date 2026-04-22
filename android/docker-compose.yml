@@ -14,18 +14,10 @@ services:
       - ${HOME}/.claude:/host-claude:ro
     environment:
       - ADB_TARGET=cuttlefish:6520
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu, utility, compute]
     shm_size: '8g'
     mem_limit: 24g
     security_opt:
       - label:disable  # SELinux labeling disabled: container storage lives on /home (bind mount)
-      - seccomp:unconfined
     stdin_open: true
     tty: true
     depends_on:
