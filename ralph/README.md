@@ -105,6 +105,16 @@ PROBLEMS.md         — append-only log of failed approaches
 CURRENT_TASK.md     — the active task Sonnet is working on (written by planner)
 ```
 
+### Test results contract
+
+Ralph snapshots `test_results.txt` (last 20 lines) into the Opus context
+each cycle, but **the harness never populates it** — that's the project's
+responsibility. Wire your test runner (a Gradle task, a wrapper around
+`go test`, a pytest `--junit-xml` post-processor, etc.) so each test run
+writes to `test_results.txt` in the project root. Without this hook, Opus
+sees `(no test results file found)` on every cycle and cannot factor test
+health into its decisions.
+
 ## Modes
 
 ### Hierarchical (default): `./ralph.sh plan.md`

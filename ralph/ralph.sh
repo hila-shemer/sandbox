@@ -94,7 +94,12 @@ git_log_summary() {
 }
 
 test_summary() {
-  # Best-effort snapshot of last test run. Adapt per project.
+  # Contract: the PROJECT is responsible for writing test_results.txt —
+  # ralph never populates it. Wire it to your test runner (e.g. a Gradle
+  # task, a wrapper script around `go test`, or a pytest --junit-xml post-
+  # processor) so each test run overwrites or appends to this file. If no
+  # project hook writes it, Opus will see "(no test results file found)"
+  # every cycle and its assessment of test health will be empty.
   if [[ -f test_results.txt ]]; then
     tail -20 test_results.txt
   else
