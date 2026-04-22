@@ -1,0 +1,26 @@
+services:
+  claude-loop:
+    image: claude-loop
+    build:
+      context: ${PROJECT_DIR:?set PROJECT_DIR=/abs/path/to/project}
+      dockerfile: ${SANDBOX_DIR:?set SANDBOX_DIR=/abs/path/to/sandbox}/loop/Dockerfile
+      args:
+        HOST_UID: "${HOST_UID:-1000}"
+        HOST_GID: "${HOST_GID:-1000}"
+    volumes:
+      - claude-loop-home:/home/dev      # persists credentials and shell state across runs
+      - ${SANDBOX_DIR}/loop/entrypoint.sh:/entrypoint.sh:ro
+      - ${PROJECT_DIR}/patches:/output
+      - ${HOME}/.claude:/host-claude:ro
+    shm_size: '2g'
+    mem_limit: 8g
+    security_opt:
+      - label:disable  # SELinux labeling disabled: container storage lives on /home (bind mount)
+      - seccomp:unconfined
+    stdin_open: true
+    tty: true
+
+volumes:
+  claude-loop-home:
+    external: true
+    name: claude-loop-home

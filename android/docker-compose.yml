@@ -1,12 +1,16 @@
 services:
-  wcd-dev:
-    image: wcd-dev
+  claude-android:
+    image: claude-android
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ${PROJECT_DIR:?set PROJECT_DIR=/abs/path/to/project}
+      dockerfile: ${SANDBOX_DIR:?set SANDBOX_DIR=/abs/path/to/sandbox}/android/Dockerfile
+      args:
+        HOST_UID: "${HOST_UID:-1000}"
+        HOST_GID: "${HOST_GID:-1000}"
     volumes:
-      - dev-home:/home/dev      # persists credentials, AVD, gradle cache across runs
-      - ./patches:/output
+      - claude-android-home:/home/dev      # persists credentials, AVD, gradle cache across runs
+      - ${SANDBOX_DIR}/android/entrypoint.sh:/entrypoint.sh:ro
+      - ${PROJECT_DIR}/patches:/output
       - ${HOME}/.claude:/host-claude:ro
     environment:
       - ADB_TARGET=cuttlefish:6520
@@ -32,7 +36,7 @@ services:
     image: us-docker.pkg.dev/android-cuttlefish-artifacts/cuttlefish-orchestration/cuttlefish-orchestration:stable
     privileged: true
     volumes:
-      - ./entrypoint-cuttlefish.sh:/entrypoint-cuttlefish.sh:ro
+      - ${SANDBOX_DIR}/android/entrypoint-cuttlefish.sh:/entrypoint-cuttlefish.sh:ro
       - cf-images:/root/cf_images
     entrypoint: ["/entrypoint-cuttlefish.sh"]
     ports:
@@ -48,7 +52,7 @@ services:
       retries: 10
 
 volumes:
-  dev-home:
+  claude-android-home:
     external: true
-    name: wcd_dev-home
+    name: claude-android-home
   cf-images:

@@ -1,8 +1,0 @@
-.gradle
-build/
-app/build/
-local.properties
-*.md
-ralph/
-ralph.sh
-patches/

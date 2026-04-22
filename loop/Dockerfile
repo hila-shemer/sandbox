@@ -10,7 +10,7 @@ RUN git config --global --add safe.directory /src && \
     git ls-files | xargs cp --parents -t /out
 
 # --- Stage 2: final image ---
-FROM ghcr.io/hila-shemer/claude-android-base:latest
+FROM ghcr.io/hila-shemer/claude-loop-base:latest
 
 # Create non-root user matching host UID (keeps volume-mounted file ownership sane)
 ARG HOST_UID=1000
@@ -31,8 +31,6 @@ COPY --from=source --chown=dev:dev /out /app
 
 USER dev
 WORKDIR /app
-
-RUN [ -f gradlew ] && chmod +x gradlew || true
 
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["/bin/bash"]

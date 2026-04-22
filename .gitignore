@@ -1,0 +1,7 @@
+# Host-side credentials (never commit)
+.claude/
+.claude.json
+github-docker-token
+
+# Ignore any project patches accidentally placed here
+patches/
