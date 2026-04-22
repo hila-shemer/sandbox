@@ -31,6 +31,12 @@ You are running inside a Docker sandbox. Conventions specific to this environmen
   appears in patches.
 - **`baseline`** is a git tag on the commit made when the container started.
   Your delta from it = what you have changed. `git diff baseline` to inspect.
+- **JDK 21 is at `/usr/lib/jvm/java-21-openjdk-amd64`** (Debian path), not
+  `/usr/lib/jvm/java-21-openjdk` (Fedora path). If a project's
+  `gradle.properties` pins `org.gradle.java.home` to the Fedora path, Gradle
+  will fail with a missing-JDK error here even though JDK 21 is installed —
+  override via `JAVA_HOME` on the Gradle command line or a `~/.gradle/gradle.properties`,
+  don't conclude the sandbox lacks a JDK.
 EOF
 
 # Initialize a fresh git repo from the copied source so the container
