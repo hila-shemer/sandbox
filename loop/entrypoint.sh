@@ -3,13 +3,25 @@ set -e
 
 # Sync Claude preferences from host (read-only mount) into the persistent home volume.
 # Only copies preferences — auth files (sessions, .claude.json) are left untouched.
+# settings.json is merged rather than overwritten so container-written keys
+# (e.g. skipDangerousModePermissionPrompt, set on first accept of
+# --dangerously-skip-permissions) survive restarts.
 if [ -d /host-claude ]; then
     mkdir -p /home/dev/.claude
-    for item in CLAUDE.md agents settings.json; do
+    for item in CLAUDE.md agents; do
         src="/host-claude/$item"
         dst="/home/dev/.claude/$item"
         [ -e "$src" ] && cp -r "$src" "$dst"
     done
+    if [ -f /host-claude/settings.json ]; then
+        dst=/home/dev/.claude/settings.json
+        if [ -f "$dst" ]; then
+            jq -s '.[0] * .[1]' "$dst" /host-claude/settings.json > "$dst.merged" \
+                && mv "$dst.merged" "$dst"
+        else
+            cp /host-claude/settings.json "$dst"
+        fi
+    fi
 fi
 
 # Append sandbox-specific guidance to the user-level CLAUDE.md. Host CLAUDE.md
