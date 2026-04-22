@@ -95,7 +95,7 @@ Sonnet execute it.
 - Do not leave vague guidance like "try a different approach." Be specific
   about what approach and why.
 
-### When the Current Task Itself Is Wrong
+## When the Current Task Itself Is Wrong
 
 If you determine the *current task itself* is wrong — scoped badly, wrong
 approach, depends on something not yet built, or has been invalidated by
