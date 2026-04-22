@@ -288,6 +288,12 @@ run_opus_review() {
     memory_context
   } | call_claude -p $CLAUDE_FLAGS --model "$OPUS_MODEL"
 
+  # Reviewer may have committed a small fix (see opus_reviewer.md §4).
+  # Refresh test_results.txt so the next consumer — Sonnet's next iteration
+  # or the outer planner cycle — sees the post-review test state, not the
+  # pre-review snapshot Sonnet handed in.
+  run_tests
+
   log "  << Opus review complete"
 }
 
