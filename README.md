@@ -6,8 +6,8 @@ machine. Two variants:
 - **`loop/`** — lightweight container with Claude Code + generic dev tools + C
   toolchain. Intended for ralph-style autonomous loops on arbitrary projects.
 - **`android/`** — everything in `loop/` plus OpenJDK 17, the Android SDK
-  (platforms-34, build-tools 34.0.0, platform-tools, emulator, system-image),
-  and a companion Cuttlefish container serving as the target device over ADB.
+  (platforms-34, build-tools 34.0.0, platform-tools), and a companion
+  Cuttlefish container serving as the target device over ADB.
 
 Both variants bake the target project into `/app` at build time (via `git
 ls-files`), let Claude Code edit and commit inside the container against an
@@ -137,5 +137,3 @@ adb devices                     # cuttlefish:6520
   host with container storage on a `/home` bind mount; harmless elsewhere.
 - The Cuttlefish container runs `privileged: true` — it needs direct KVM and
   device access to boot the virtual Android device.
-- The Android base image still contains the emulator binary and a system
-  image — legacy from the pre-Cuttlefish era; unused but kept for parity.
