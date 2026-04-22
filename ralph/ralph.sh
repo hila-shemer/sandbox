@@ -79,7 +79,11 @@ run_log_header() {
 }
 
 status_line() {
-  head -n 1 STATUS.md 2>/dev/null || echo ""
+  # Normalize the first line of STATUS.md (or the file passed in $1):
+  # strip whitespace and leading `#` markdown headers, uppercase everything.
+  # This tolerates BOMs, "## TASK_DONE", "  task_done  ", etc. BLOCKED:<reason>
+  # still matches a BLOCKED* glob because the prefix is preserved.
+  head -n 1 "${1:-STATUS.md}" 2>/dev/null | tr -d '[:space:]#' | tr '[:lower:]' '[:upper:]'
 }
 
 git_log_summary() {
@@ -279,9 +283,10 @@ run_hierarchical_loop() {
     } | claude -p $CLAUDE_FLAGS --model "$OPUS_MODEL" 2>>"$LOG" \
       | tee -a "$RUN_LOG"
 
-    # Check what Opus wrote
+    # Check what Opus wrote (normalized: tolerates "## COMPLETE", whitespace,
+    # lowercase, BOMs, etc.)
     local task_status
-    task_status=$(head -n 1 CURRENT_TASK.md 2>/dev/null || echo "")
+    task_status=$(status_line CURRENT_TASK.md)
 
     if [[ "$task_status" == "COMPLETE" ]]; then
       log "✓ Opus declares project complete after $outer planning cycle(s)"
