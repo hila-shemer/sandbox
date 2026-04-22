@@ -31,6 +31,9 @@ android/
   docker-compose.yml                Adds a Cuttlefish service, GPU, depends_on healthcheck
   entrypoint.sh                     Also waits for ADB at cuttlefish:6520
   entrypoint-cuttlefish.sh          Runs inside the Cuttlefish container
+ralph/                              Autonomous three-role (Opus planner, Opus reviewer,
+                                    Sonnet executor) implementation loop. Bind-mounted
+                                    read-only into /opt/ralph in both variants.
 ```
 
 ## Base images
@@ -137,6 +140,25 @@ adb devices                     # cuttlefish:6520
 - `$PROJECT_DIR/.notes` → `/home/dev/notes` — bind mount for untracked scratch
   files (plan.md, design notes, etc.). Bidirectional; lives outside `/app` so
   the container's git never sees it.
+
+## Autonomous loops (ralph)
+
+Both variants include the `ralph` harness at `/opt/ralph/` (bind-mounted from
+`sandbox/ralph/`, also on `$PATH`). Three-role architecture: Opus planner and
+Opus reviewer steer a Sonnet executor iterating with fresh context each loop,
+communicating through memory files in `/app`. Put your plan in
+`/home/dev/notes/plan.md` (so it stays outside `/app`) and run:
+
+```
+ralph.sh /home/dev/notes/plan.md                 # hierarchical (Opus + Sonnet)
+ralph.sh /home/dev/notes/plan.md --sonnet-only   # flat, cheaper
+```
+
+The entrypoint pre-excludes ralph's runtime state (`STATUS.md`, `DECISIONS.md`,
+`PROBLEMS.md`, `CURRENT_TASK.md`, `ralph.log`) via `.git/info/exclude` so those
+don't appear in `save-patch` output. `CLAUDE_FLAGS=--dangerously-skip-permissions`
+is pre-exported for non-interactive tool use — the container is the permission
+boundary. See `ralph/README.md` for the full design.
 
 ## Notes
 

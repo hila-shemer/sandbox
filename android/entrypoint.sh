@@ -50,6 +50,29 @@ if [ ! -d /app/.git ]; then
     git -C /app tag baseline
 fi
 
+# Exclude ralph's runtime memory files from git without touching the project's
+# tracked .gitignore. `save-patch` does `git add -A`, so anything not excluded
+# here would otherwise leak into exported patches.
+cat >> /app/.git/info/exclude <<'EOF'
+# ralph runtime memory (autonomous loop)
+STATUS.md
+DECISIONS.md
+PROBLEMS.md
+CURRENT_TASK.md
+ralph.log
+EOF
+
+# Make ralph available on PATH and auto-approve tool use from its claude calls
+# (the container itself is the permission boundary). Idempotent via sentinel.
+if ! grep -q '# sandbox-ralph' /home/dev/.bashrc 2>/dev/null; then
+    cat >> /home/dev/.bashrc <<'EOF'
+
+# sandbox-ralph
+export PATH="/opt/ralph:$PATH"
+export CLAUDE_FLAGS="--dangerously-skip-permissions"
+EOF
+fi
+
 # Connect to ADB target if specified (e.g. cuttlefish:6520, host.docker.internal:6520)
 if [ -n "$ADB_TARGET" ]; then
     echo "Waiting for ADB target $ADB_TARGET..."
