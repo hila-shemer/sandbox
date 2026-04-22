@@ -36,7 +36,7 @@ Read these files at the start of every iteration (if they exist):
 
 ## Signaling Completion
 
-Check `STATUS.md` to determine which signal to use:
+Write the first line of `STATUS.md` as follows:
 
 - If the **entire project** is complete and all tests pass → write `DONE` as
   the first line of `STATUS.md`.
