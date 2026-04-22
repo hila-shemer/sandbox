@@ -9,15 +9,13 @@ services:
         HOST_GID: "${HOST_GID:-1000}"
     volumes:
       - claude-android-home:/home/dev      # persists credentials, AVD, gradle cache across runs
-      - ${SANDBOX_DIR}/android/entrypoint.sh:/entrypoint.sh:ro
-      - ${PROJECT_DIR}/patches:/output
-      - ${HOME}/.claude:/host-claude:ro
+      - ${SANDBOX_DIR}/android/entrypoint.sh:/entrypoint.sh:ro,z
+      - ${PROJECT_DIR}/patches:/output:z
+      - ${HOME}/.claude:/host-claude:ro,z
     environment:
       - ADB_TARGET=cuttlefish:6520
     shm_size: '8g'
     mem_limit: 24g
-    security_opt:
-      - label:disable  # SELinux labeling disabled: container storage lives on /home (bind mount)
     stdin_open: true
     tty: true
     depends_on:

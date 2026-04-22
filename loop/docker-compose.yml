@@ -9,13 +9,11 @@ services:
         HOST_GID: "${HOST_GID:-1000}"
     volumes:
       - claude-loop-home:/home/dev      # persists credentials and shell state across runs
-      - ${SANDBOX_DIR}/loop/entrypoint.sh:/entrypoint.sh:ro
-      - ${PROJECT_DIR}/patches:/output
-      - ${HOME}/.claude:/host-claude:ro
+      - ${SANDBOX_DIR}/loop/entrypoint.sh:/entrypoint.sh:ro,z
+      - ${PROJECT_DIR}/patches:/output:z
+      - ${HOME}/.claude:/host-claude:ro,z
     shm_size: '2g'
     mem_limit: 8g
-    security_opt:
-      - label:disable  # SELinux labeling disabled: container storage lives on /home (bind mount)
     stdin_open: true
     tty: true
 
