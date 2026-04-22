@@ -129,6 +129,9 @@ adb devices                     # cuttlefish:6520
   subsequent starts skip the multi-GB download.
 - `$PROJECT_DIR/patches` → `/output` — bind mount for getting files out of the
   container.
+- `$PROJECT_DIR/.notes` → `/home/dev/notes` — bind mount for untracked scratch
+  files (plan.md, design notes, etc.). Bidirectional; lives outside `/app` so
+  the container's git never sees it.
 
 ## Notes
 

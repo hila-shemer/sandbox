@@ -11,7 +11,7 @@ export PROJECT_DIR=`pwd`
 #$HOME/proj/my-project
 export HOST_UID=$(id -u)
 export HOST_GID=$(id -g)
-mkdir -p "$PROJECT_DIR/patches"
+mkdir -p "$PROJECT_DIR/patches" "$PROJECT_DIR/.notes"
 
 docker compose -f "$SANDBOX_DIR/android/docker-compose.yml" build
 docker compose -f "$SANDBOX_DIR/android/docker-compose.yml" run --rm claude-android
