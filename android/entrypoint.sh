@@ -37,6 +37,7 @@ You are running inside a Docker sandbox. Conventions specific to this environmen
   will fail with a missing-JDK error here even though JDK 21 is installed —
   override via `JAVA_HOME` on the Gradle command line or a `~/.gradle/gradle.properties`,
   don't conclude the sandbox lacks a JDK.
+- There's an Android emulator attached. run `adb devices` and it should show up.
 EOF
 
 # Initialize a fresh git repo from the copied source so the container
