@@ -1,6 +1,33 @@
 
 ---
 
+## Test Harness Contract
+
+The repo must contain an executable `run_tests.sh` at the root that runs the
+full test suite and writes its results to `test_results.txt`. The ralph
+harness invokes this script to give the planner and reviewer a real view of
+test state.
+
+**If `run_tests.sh` does not exist**, creating it is part of this iteration's
+work. Pick whatever test command is appropriate for the project (e.g.,
+`./gradlew test` for Android, `pytest` for Python) and wrap it so that:
+
+- Full output is captured to `test_results.txt` (overwrite, not append).
+- The script exits 0 iff all tests pass, non-zero otherwise.
+- The script is self-contained and idempotent — runnable from a fresh shell.
+
+**If `run_tests.sh` exists but does not cover new tests you added**, update
+it. New test files, new test directories, or new test runners all need to be
+reachable from the script. It is not acceptable to add tests that the script
+misses.
+
+Log the script's purpose and test command in `DECISIONS.md` under a "Test
+Harness" heading on first creation, and update that entry if the command
+changes.
+
+Do not write to `test_results.txt` directly from your implementation work.
+That file is an output of `run_tests.sh` only.
+
 ## Reminders
 
 - Build incrementally. A working partial implementation committed is better than

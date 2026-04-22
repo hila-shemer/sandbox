@@ -33,6 +33,12 @@ If the previous work has issues:
 - Record any corrective decisions in DECISIONS.md.
 - Your next task spec should address the issues before moving forward.
 
+Check that `run_tests.sh` exists, is executable, and that `test_results.txt`
+reflects a recent run. If the script is missing or obviously out of date
+(e.g., new test files in the tree not reachable from the script), the next
+task must address that before new feature work. Tests are not optional; an
+unverified claim that tests pass is worse than a known failure.
+
 ### 2. Assess Overall Progress
 
 Compare the full implementation plan against what's been built (from STATUS.md,

@@ -125,16 +125,29 @@ record_planner_sha() {
 }
 
 test_summary() {
-  # Contract: the PROJECT is responsible for writing test_results.txt —
-  # ralph never populates it. Wire it to your test runner (e.g. a Gradle
-  # task, a wrapper script around `go test`, or a pytest --junit-xml post-
-  # processor) so each test run overwrites or appends to this file. If no
-  # project hook writes it, Opus will see "(no test results file found)"
-  # every cycle and its assessment of test health will be empty.
+  # Reads whatever run_tests() last wrote to test_results.txt. The script
+  # run_tests.sh is maintained by Sonnet as part of each iteration's work
+  # (see sonnet_suffix.md — "Test Harness Contract"); ralph drives it via
+  # run_tests() below. If Sonnet has not yet created run_tests.sh, the file
+  # will contain an explanatory placeholder written by run_tests().
   if [[ -f test_results.txt ]]; then
     tail -20 test_results.txt
   else
     echo "(no test results file found)"
+  fi
+}
+
+run_tests() {
+  # Invoked between Sonnet iterations and before handing back to the planner,
+  # so test_results.txt is always fresh when the planner or reviewer reads
+  # it next. Non-fatal: broken tests are information for the planner, not a
+  # loop abort.
+  if [[ -x ./run_tests.sh ]]; then
+    log "  Running tests via ./run_tests.sh"
+    ./run_tests.sh > test_results.txt 2>&1 || true
+  else
+    log "  No run_tests.sh yet — executor has not set up test harness"
+    echo "(run_tests.sh not present — executor has not set up test harness yet)" > test_results.txt
   fi
 }
 
@@ -243,6 +256,10 @@ run_sonnet() {
       | claude -p $CLAUDE_FLAGS --model "$SONNET_MODEL" 2>>"$LOG" \
       | tee -a "$LOG"
 
+    # Refresh test_results.txt so any Opus reviewer triggered this iteration
+    # (periodic or BLOCKED-unblock) sees current test state.
+    run_tests
+
     local status
     status=$(status_line)
 
@@ -296,6 +313,8 @@ run_flat_loop() {
       log "✗ $status (after $iteration iterations)"
       return 1
     fi
+
+    run_tests
   done
 
   log "✗ Hit MAX_FLAT cap ($MAX_FLAT) without DONE/BLOCKED — aborting"

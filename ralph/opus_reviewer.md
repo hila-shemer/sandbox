@@ -25,6 +25,11 @@ actually been built. Specifically:
 - Is Sonnet making real progress, or is it churning (making and reverting
   similar changes, or editing the same code repeatedly)?
 
+Read `test_results.txt` — it's the last output of `./run_tests.sh` and should
+reflect actual test state. If it shows failures, Sonnet should be fixing
+them, not adding features. If `run_tests.sh` is missing, note that in
+`STATUS.md` — Sonnet needs to set it up.
+
 ### 2. Diagnose Problems
 
 If something is wrong, figure out why:
