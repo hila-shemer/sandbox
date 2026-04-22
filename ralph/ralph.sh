@@ -19,6 +19,8 @@ set -euo pipefail
 #   SONNET_MODEL       — model for execution (default: sonnet)
 #   MAX_INNER          — max Sonnet iterations per task (default: 8)
 #   MAX_OUTER          — max Opus planning cycles (default: 50)
+#   MAX_FLAT           — max Sonnet iterations in --sonnet-only flat mode
+#                        before aborting with nonzero exit (default: 100)
 #   REVIEW_INTERVAL    — Opus review every N Sonnet iterations (default: 4)
 #   RALPH_LOG          — status log file path (default: ralph.log)
 #   RALPH_RUN_LOG      — per-run streaming log of every `claude -p` call's
@@ -42,6 +44,7 @@ OPUS_MODEL="${OPUS_MODEL:-opus}"
 SONNET_MODEL="${SONNET_MODEL:-sonnet}"
 MAX_INNER="${MAX_INNER:-8}"
 MAX_OUTER="${MAX_OUTER:-50}"
+MAX_FLAT="${MAX_FLAT:-100}"
 REVIEW_INTERVAL="${REVIEW_INTERVAL:-4}"
 LOG="${RALPH_LOG:-ralph.log}"
 # RUN_LOG is set in main() once per invocation, so every claude call in this
@@ -238,10 +241,10 @@ run_sonnet() {
 
 run_flat_loop() {
   local iteration=0
-  while true; do
+  while (( iteration < MAX_FLAT )); do
     iteration=$((iteration + 1))
-    log "Iteration $iteration"
-    run_log_header "Sonnet flat iteration $iteration"
+    log "Iteration $iteration / $MAX_FLAT"
+    run_log_header "Sonnet flat iteration $iteration / $MAX_FLAT"
 
     cat "$SONNET_PREFIX" "$PLAN" "$SONNET_SUFFIX" \
       | claude -p $CLAUDE_FLAGS --model "$SONNET_MODEL" 2>>"$LOG" \
@@ -258,6 +261,9 @@ run_flat_loop() {
       return 1
     fi
   done
+
+  log "✗ Hit MAX_FLAT cap ($MAX_FLAT) without DONE/BLOCKED — aborting"
+  return 1
 }
 
 # ── Main: hierarchical loop with Opus planning ──────────────────────

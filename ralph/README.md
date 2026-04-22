@@ -126,6 +126,7 @@ simpler, fine for well-scoped projects.
 | `SONNET_MODEL`    | `sonnet`     | Model for executor                      |
 | `MAX_INNER`       | `8`          | Sonnet iterations per task slice        |
 | `MAX_OUTER`       | `50`         | Planner cycles before abort             |
+| `MAX_FLAT`        | `100`        | Iterations in `--sonnet-only` flat mode before abort |
 | `REVIEW_INTERVAL` | `4`          | Review every N Sonnet iterations (0=off)|
 | `RALPH_LOG`       | `ralph.log`  | Log file path                           |
 
