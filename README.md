@@ -5,7 +5,7 @@ machine. Two variants:
 
 - **`loop/`** — lightweight container with Claude Code + generic dev tools + C
   toolchain. Intended for ralph-style autonomous loops on arbitrary projects.
-- **`android/`** — everything in `loop/` plus OpenJDK 17, the Android SDK
+- **`android/`** — everything in `loop/` plus OpenJDK 21, the Android SDK
   (platforms-34, build-tools 34.0.0, platform-tools), and a companion
   Cuttlefish container serving as the target device over ADB.
 
