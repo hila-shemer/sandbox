@@ -84,10 +84,14 @@ run_log_header() {
 
 status_line() {
   # Normalize the first line of STATUS.md (or the file passed in $1):
-  # strip whitespace and leading `#` markdown headers, uppercase everything.
-  # This tolerates BOMs, "## TASK_DONE", "  task_done  ", etc. BLOCKED:<reason>
-  # still matches a BLOCKED* glob because the prefix is preserved.
-  head -n 1 "${1:-STATUS.md}" 2>/dev/null | tr -d '[:space:]#' | tr '[:lower:]' '[:upper:]'
+  # strip a leading UTF-8 BOM, then whitespace and `#` markdown headers,
+  # then uppercase. Tolerates "﻿TASK_DONE", "## TASK_DONE", "  task_done  ",
+  # etc. BLOCKED:<reason> still matches a BLOCKED* glob because the prefix
+  # is preserved (colon and reason get flattened but that's fine).
+  head -n 1 "${1:-STATUS.md}" 2>/dev/null \
+    | sed $'s/^\xef\xbb\xbf//' \
+    | tr -d '[:space:]#' \
+    | tr '[:lower:]' '[:upper:]'
 }
 
 git_log_summary() {
