@@ -12,8 +12,8 @@ services:
       - ${SANDBOX_DIR}/loop/entrypoint.sh:/entrypoint.sh:ro,z
       - ${PROJECT_DIR}/patches:/output:z
       - ${HOME}/.claude:/host-claude:ro,z
-    shm_size: '2g'
-    mem_limit: 8g
+    shm_size: '8g'
+    mem_limit: 32g
     stdin_open: true
     tty: true
 
