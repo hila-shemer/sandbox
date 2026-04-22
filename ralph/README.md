@@ -138,7 +138,7 @@ simpler, fine for well-scoped projects.
 | `MAX_OUTER`       | `50`         | Planner cycles before abort             |
 | `MAX_FLAT`        | `100`        | Iterations in `--sonnet-only` flat mode before abort |
 | `REVIEW_INTERVAL` | `4`          | Review every N Sonnet iterations (0=off)|
-| `RALPH_LOG`       | `ralph.log`  | Log file path                           |
+| `RALPH_LOG`       | `ralph-<ts>.log` | Log file path (one per run by default) |
 
 ## Docker Usage
 
@@ -175,23 +175,27 @@ Key considerations:
 
 ## Observability
 
-Ralph writes two log files per run:
+Each `ralph.sh` invocation creates one log file, `ralph-<timestamp>.log`
+(override with `$RALPH_LOG`), that receives both:
 
-- `ralph.log` (or `$RALPH_LOG`) — the status log written by the `log()`
-  helper: per-iteration markers and lifecycle events. Accumulates across
-  runs.
-- `ralph-run-<timestamp>.log` (or `$RALPH_RUN_LOG`) — the per-run streaming
-  log. Every `claude -p` invocation's stdout is tee'd to this file, prefixed
-  by a header like `=== [HH:MM:SS] Opus planner cycle 3 ===`.
+- status markers from the `log()` helper (iteration boundaries, lifecycle
+  events), and
+- the tee'd stdout of every `claude -p` call, prefixed with a header like
+  `=== [HH:MM:SS] Opus planner cycle 3 ===` so you can tell which call
+  you're reading.
 
 To watch progress live in another pane:
 
 ```bash
-tail -f ralph-run-*.log
+tail -f ralph-*.log
 ```
 
 `ralph-init.sh` emits its own `ralph-init-<timestamp>.log` alongside the
 generated plan, with the same streaming contract.
+
+The `ralph-*.log` glob is `.gitignore`'d at the repo root — add the same
+pattern to your project's `.gitignore` if you're running ralph against
+another repo.
 
 ## On Filesystem Access
 

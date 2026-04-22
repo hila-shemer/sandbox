@@ -22,11 +22,11 @@ set -euo pipefail
 #   MAX_FLAT           — max Sonnet iterations in --sonnet-only flat mode
 #                        before aborting with nonzero exit (default: 100)
 #   REVIEW_INTERVAL    — Opus review every N Sonnet iterations (default: 4)
-#   RALPH_LOG          — status log file path (default: ralph.log)
-#   RALPH_RUN_LOG      — per-run streaming log of every `claude -p` call's
-#                        stdout (default: ralph-run-<timestamp>.log, created
-#                        in main()). Tail this to watch progress live:
-#                          tail -f ralph-run-YYYYMMDD-HHMMSS.log
+#   RALPH_LOG          — per-run log of status markers AND every `claude -p`
+#                        call's stdout (default: ralph-<timestamp>.log, one
+#                        per invocation). Tail in another pane to watch
+#                        progress live:
+#                          tail -f ralph-YYYYMMDD-HHMMSS.log
 #   CLAUDE_FLAGS       — extra flags passed to every `claude` invocation.
 #                        Inside the sandbox container this is preset to
 #                        "--dangerously-skip-permissions" so tool use is
@@ -46,10 +46,11 @@ MAX_INNER="${MAX_INNER:-8}"
 MAX_OUTER="${MAX_OUTER:-50}"
 MAX_FLAT="${MAX_FLAT:-100}"
 REVIEW_INTERVAL="${REVIEW_INTERVAL:-4}"
-LOG="${RALPH_LOG:-ralph.log}"
-# RUN_LOG is set in main() once per invocation, so every claude call in this
-# run tees to the same timestamped file.
-RUN_LOG="${RALPH_RUN_LOG:-}"
+# LOG is the unified per-run log. It receives both status markers from log()
+# and the tee'd stdout of every `claude -p` call, so a single `tail -f` gives
+# the full narrative. Default is timestamped in main() — override with
+# RALPH_LOG if you want to pin the filename (e.g. for an outer wrapper).
+LOG="${RALPH_LOG:-}"
 CLAUDE_FLAGS="${CLAUDE_FLAGS:-}"
 
 # The installed `claude` CLI supports --output-format stream-json (with
@@ -71,14 +72,14 @@ log() {
   echo "$msg" >> "$LOG"
 }
 
-# Write a header into the per-run streaming log so a `tail -f` watcher can
-# tell which claude call's output they're looking at. Called just before
-# each `claude -p` invocation.
+# Write a header into the per-run log so a `tail -f` watcher can tell which
+# claude call's output they're looking at. Called just before each `claude -p`
+# invocation.
 run_log_header() {
   {
     echo ""
     echo "=== [$(date '+%H:%M:%S')] $* ==="
-  } >> "$RUN_LOG"
+  } >> "$LOG"
 }
 
 status_line() {
@@ -192,7 +193,7 @@ run_opus_review() {
     echo ""
     echo "---"
     memory_context
-  } | claude -p $CLAUDE_FLAGS --model "$OPUS_MODEL" 2>>"$LOG" | tee -a "$RUN_LOG"
+  } | claude -p $CLAUDE_FLAGS --model "$OPUS_MODEL" 2>>"$LOG" | tee -a "$LOG"
 
   log "  << Opus review complete"
 }
@@ -210,7 +211,7 @@ run_sonnet() {
 
     cat "$SONNET_PREFIX" "$task_file" "$SONNET_SUFFIX" \
       | claude -p $CLAUDE_FLAGS --model "$SONNET_MODEL" 2>>"$LOG" \
-      | tee -a "$RUN_LOG"
+      | tee -a "$LOG"
 
     local status
     status=$(status_line)
@@ -253,7 +254,7 @@ run_flat_loop() {
 
     cat "$SONNET_PREFIX" "$PLAN" "$SONNET_SUFFIX" \
       | claude -p $CLAUDE_FLAGS --model "$SONNET_MODEL" 2>>"$LOG" \
-      | tee -a "$RUN_LOG"
+      | tee -a "$LOG"
 
     local status
     status=$(status_line)
@@ -292,7 +293,7 @@ run_hierarchical_loop() {
       echo "---"
       memory_context
     } | claude -p $CLAUDE_FLAGS --model "$OPUS_MODEL" 2>>"$LOG" \
-      | tee -a "$RUN_LOG"
+      | tee -a "$LOG"
 
     # Check what Opus wrote (normalized: tolerates "## COMPLETE", whitespace,
     # lowercase, BOMs, etc.)
@@ -333,20 +334,19 @@ main() {
     exit 1
   fi
 
+  # One log per run, created here so status markers and every claude call's
+  # stdout append to the same timestamped file. Tail it in another pane:
+  #   tail -f ralph-YYYYMMDD-HHMMSS.log
+  if [[ -z "$LOG" ]]; then
+    LOG="ralph-$(date +%Y%m%d-%H%M%S).log"
+  fi
+  : > "$LOG"
+
   check_prompt_files
   ensure_git
 
-  # One streaming log per run, created here so every claude call in this
-  # invocation appends to the same file. Tail it in another pane:
-  #   tail -f "$RUN_LOG"
-  if [[ -z "$RUN_LOG" ]]; then
-    RUN_LOG="ralph-run-$(date +%Y%m%d-%H%M%S).log"
-  fi
-  : > "$RUN_LOG"
-
-  echo "" >> "$LOG"
   log "═══ Ralph started: plan=$PLAN sonnet_only=$SONNET_ONLY ═══"
-  log "Streaming claude output → $RUN_LOG (tail -f to watch)"
+  log "Log file: $LOG (tail -f to watch)"
 
   if [[ "$SONNET_ONLY" == true ]]; then
     run_flat_loop
