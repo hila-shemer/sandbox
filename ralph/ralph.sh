@@ -31,6 +31,13 @@ set -euo pipefail
 #                        Inside the sandbox container this is preset to
 #                        "--dangerously-skip-permissions" so tool use is
 #                        auto-approved (the container is the permission boundary).
+#   RETRY_MAX_ATTEMPTS — total claude attempts per call site, incl. the
+#                        first try (default: 8). After exhausting retries
+#                        the loop aborts.
+#   RETRY_BASE_DELAY   — seconds to wait before the first retry, doubled
+#                        on each subsequent failure (default: 30).
+#   RETRY_MAX_DELAY    — cap on per-retry backoff in seconds
+#                        (default: 900 = 15 min).
 # ──────────────────────────────────────────────────────────────────────
 
 PLAN="${1:?Usage: $0 <implementation_plan.md> [--sonnet-only]}"
@@ -52,6 +59,9 @@ REVIEW_INTERVAL="${REVIEW_INTERVAL:-4}"
 # RALPH_LOG if you want to pin the filename (e.g. for an outer wrapper).
 LOG="${RALPH_LOG:-}"
 CLAUDE_FLAGS="${CLAUDE_FLAGS:-}"
+RETRY_MAX_ATTEMPTS="${RETRY_MAX_ATTEMPTS:-8}"
+RETRY_BASE_DELAY="${RETRY_BASE_DELAY:-30}"
+RETRY_MAX_DELAY="${RETRY_MAX_DELAY:-900}"
 
 # The installed `claude` CLI supports --output-format stream-json (with
 # --print --verbose), but that emits JSON-wrapped chunks which are not ideal
@@ -151,6 +161,46 @@ run_tests() {
   fi
 }
 
+# Wraps a single `claude -p ...` invocation with retry + exponential backoff
+# on non-zero exit. Transient failures (API overload, rate limit, network
+# blip) usually clear in minutes; structural failures (bad auth, missing
+# model, prompt too large) don't. We can't cheaply distinguish from the CLI
+# exit code alone, so we retry uniformly and cap attempts — a broken config
+# still fails within an hour or so instead of spinning forever.
+#
+# Stdin is captured once into a tempfile so each retry replays the same
+# prompt. stdout/stderr are tee'd to $LOG exactly as the original inline
+# pipelines did.
+call_claude() {
+  local tmp
+  tmp=$(mktemp)
+  cat > "$tmp"
+
+  local attempt=0
+  local delay="$RETRY_BASE_DELAY"
+  local rc=0
+
+  while :; do
+    attempt=$((attempt + 1))
+    if claude "$@" < "$tmp" 2>>"$LOG" | tee -a "$LOG"; then
+      rc=0
+      break
+    fi
+    if (( attempt >= RETRY_MAX_ATTEMPTS )); then
+      log "  claude failed on attempt $attempt/$RETRY_MAX_ATTEMPTS — retries exhausted, aborting"
+      rc=1
+      break
+    fi
+    log "  claude failed on attempt $attempt/$RETRY_MAX_ATTEMPTS — sleeping ${delay}s before retry"
+    sleep "$delay"
+    delay=$(( delay * 2 ))
+    (( delay > RETRY_MAX_DELAY )) && delay=$RETRY_MAX_DELAY
+  done
+
+  rm -f "$tmp"
+  return "$rc"
+}
+
 ensure_git() {
   if [[ ! -d .git ]]; then
     git init -q
@@ -236,7 +286,7 @@ run_opus_review() {
     echo ""
     echo "---"
     memory_context
-  } | claude -p $CLAUDE_FLAGS --model "$OPUS_MODEL" 2>>"$LOG" | tee -a "$LOG"
+  } | call_claude -p $CLAUDE_FLAGS --model "$OPUS_MODEL"
 
   log "  << Opus review complete"
 }
@@ -253,8 +303,7 @@ run_sonnet() {
     run_log_header "Sonnet iteration $inner / $MAX_INNER"
 
     cat "$SONNET_PREFIX" "$task_file" "$SONNET_SUFFIX" \
-      | claude -p $CLAUDE_FLAGS --model "$SONNET_MODEL" 2>>"$LOG" \
-      | tee -a "$LOG"
+      | call_claude -p $CLAUDE_FLAGS --model "$SONNET_MODEL"
 
     # Refresh test_results.txt so any Opus reviewer triggered this iteration
     # (periodic or BLOCKED-unblock) sees current test state.
@@ -300,8 +349,7 @@ run_flat_loop() {
     run_log_header "Sonnet flat iteration $iteration / $MAX_FLAT"
 
     cat "$SONNET_PREFIX" "$PLAN" "$SONNET_SUFFIX" \
-      | claude -p $CLAUDE_FLAGS --model "$SONNET_MODEL" 2>>"$LOG" \
-      | tee -a "$LOG"
+      | call_claude -p $CLAUDE_FLAGS --model "$SONNET_MODEL"
 
     local status
     status=$(status_line)
@@ -341,8 +389,7 @@ run_hierarchical_loop() {
       echo ""
       echo "---"
       memory_context
-    } | claude -p $CLAUDE_FLAGS --model "$OPUS_MODEL" 2>>"$LOG" \
-      | tee -a "$LOG"
+    } | call_claude -p $CLAUDE_FLAGS --model "$OPUS_MODEL"
 
     # Record HEAD right after the planner call so the next planner cycle's
     # git_log_summary shows only the work Sonnet/reviewer did between planner

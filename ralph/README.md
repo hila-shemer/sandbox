@@ -138,6 +138,9 @@ simpler, fine for well-scoped projects.
 | `MAX_FLAT`        | `100`        | Iterations in `--sonnet-only` flat mode before abort |
 | `REVIEW_INTERVAL` | `4`          | Review every N Sonnet iterations (0=off)|
 | `RALPH_LOG`       | `ralph-<ts>.log` | Log file path (one per run by default) |
+| `RETRY_MAX_ATTEMPTS` | `8`       | Attempts per `claude` call before aborting the loop |
+| `RETRY_BASE_DELAY`   | `30`      | Seconds before the first retry; doubles each failure |
+| `RETRY_MAX_DELAY`    | `900`     | Cap on per-retry backoff (15 min by default)        |
 
 ## Docker Usage
 
