@@ -91,7 +91,33 @@ status_line() {
 }
 
 git_log_summary() {
+  # If we've recorded the HEAD of the previous planner cycle, only show
+  # commits since then — this stops us from burning planner context on
+  # ancient history in long-running projects. Otherwise fall back to the
+  # last 30 commits. The planner (not the reviewer) updates the marker
+  # after each cycle; see record_planner_sha().
+  local marker=".ralph/last_planner_sha"
+  if [[ -f "$marker" ]]; then
+    local since
+    since=$(cat "$marker" 2>/dev/null || true)
+    if [[ -n "$since" ]] && git rev-parse --verify --quiet "${since}^{commit}" >/dev/null 2>&1; then
+      local hidden
+      hidden=$(git rev-list --count "$since" 2>/dev/null || echo 0)
+      git log --oneline "$since..HEAD" 2>/dev/null \
+        || echo "(no new commits since last planner cycle)"
+      echo "(showing commits since last planner cycle; $hidden earlier commits hidden)"
+      return
+    fi
+  fi
   git log --oneline -30 2>/dev/null || echo "(no commits yet)"
+}
+
+# Called at the end of each planner cycle so the next cycle's git_log_summary
+# only shows new work. Reviewer must NOT call this — the window should span
+# the full planner cycle including any mid-task reviews.
+record_planner_sha() {
+  mkdir -p .ralph
+  git rev-parse HEAD > .ralph/last_planner_sha 2>/dev/null || true
 }
 
 test_summary() {
@@ -294,6 +320,11 @@ run_hierarchical_loop() {
       memory_context
     } | claude -p $CLAUDE_FLAGS --model "$OPUS_MODEL" 2>>"$LOG" \
       | tee -a "$LOG"
+
+    # Record HEAD right after the planner call so the next planner cycle's
+    # git_log_summary shows only the work Sonnet/reviewer did between planner
+    # invocations. Reviewer never touches this marker.
+    record_planner_sha
 
     # Check what Opus wrote (normalized: tolerates "## COMPLETE", whitespace,
     # lowercase, BOMs, etc.)

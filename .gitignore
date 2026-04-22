@@ -9,3 +9,6 @@ patches/
 # Per-run ralph logs (ralph.sh and ralph-init.sh). Each invocation creates
 # a timestamped file in the run directory; they are not useful history.
 ralph-*.log
+
+# Ralph's per-run state (e.g. .ralph/last_planner_sha marker).
+.ralph/
