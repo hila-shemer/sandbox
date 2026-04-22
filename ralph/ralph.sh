@@ -157,7 +157,7 @@ run_opus_review() {
     echo ""
     echo "---"
     memory_context
-  } | claude $CLAUDE_FLAGS --model "$OPUS_MODEL" 2>>"$LOG"
+  } | claude -p $CLAUDE_FLAGS --model "$OPUS_MODEL" 2>>"$LOG"
 
   log "  << Opus review complete"
 }
@@ -173,7 +173,7 @@ run_sonnet() {
     log "  Sonnet iteration $inner / $MAX_INNER"
 
     cat "$SONNET_PREFIX" "$task_file" "$SONNET_SUFFIX" \
-      | claude $CLAUDE_FLAGS --model "$SONNET_MODEL" 2>>"$LOG"
+      | claude -p $CLAUDE_FLAGS --model "$SONNET_MODEL" 2>>"$LOG"
 
     local status
     status=$(status_line)
@@ -214,7 +214,7 @@ run_flat_loop() {
     log "Iteration $iteration"
 
     cat "$SONNET_PREFIX" "$PLAN" "$SONNET_SUFFIX" \
-      | claude $CLAUDE_FLAGS --model "$SONNET_MODEL" 2>>"$LOG"
+      | claude -p $CLAUDE_FLAGS --model "$SONNET_MODEL" 2>>"$LOG"
 
     local status
     status=$(status_line)
@@ -248,7 +248,7 @@ run_hierarchical_loop() {
       echo ""
       echo "---"
       memory_context
-    } | claude $CLAUDE_FLAGS --model "$OPUS_MODEL" 2>>"$LOG"
+    } | claude -p $CLAUDE_FLAGS --model "$OPUS_MODEL" 2>>"$LOG"
 
     # Check what Opus wrote
     local task_status

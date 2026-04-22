@@ -41,6 +41,6 @@ awk -v desc="$PROJECT" '
         next
     }
     { print }
-' "$TEMPLATE" | claude $CLAUDE_FLAGS --model "$OPUS_MODEL" > "$OUTPUT"
+' "$TEMPLATE" | claude -p $CLAUDE_FLAGS --model "$OPUS_MODEL" > "$OUTPUT"
 
 echo "Wrote $OUTPUT"
