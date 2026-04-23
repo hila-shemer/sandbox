@@ -220,6 +220,35 @@ call_claude() {
   return "$rc"
 }
 
+# Sanity-check that the planner/executor/reviewer haven't created memory
+# files in a subdirectory. ralph.sh only reads them from CWD, so a misplaced
+# copy silently breaks the loop — the harness keeps running against stale
+# state. Called after every `claude -p` call that can write these files.
+#
+# Aborts the run with a clear message if a stray copy is found. False
+# positives (e.g., a deliberate `.notes/STATUS.md` unrelated to ralph) are
+# rare enough that a hard fail is better than silent drift; if you hit one,
+# rename the offending file.
+check_memory_files_location() {
+  local stray
+  stray=$(find . -path ./.git -prune -o \
+      \( -name CURRENT_TASK.md -o -name STATUS.md \
+      -o -name DECISIONS.md -o -name PROBLEMS.md \) \
+      -not -path './CURRENT_TASK.md' \
+      -not -path './STATUS.md' \
+      -not -path './DECISIONS.md' \
+      -not -path './PROBLEMS.md' \
+      -print 2>/dev/null)
+  if [[ -n "$stray" ]]; then
+    log "✗ Memory file(s) placed outside repo root — aborting:"
+    while IFS= read -r f; do
+      log "    $f"
+    done <<< "$stray"
+    log "  These files must live at the repo root (CWD). Move or delete them and re-run."
+    exit 1
+  fi
+}
+
 ensure_git() {
   if [[ ! -d .git ]]; then
     git init -q
@@ -313,6 +342,8 @@ run_opus_review() {
     memory_context
   } | call_claude -p $CLAUDE_FLAGS --model "$OPUS_MODEL"
 
+  check_memory_files_location
+
   # Reviewer may have committed a small fix (see reviewer.md §4).
   # Refresh test_results.txt so the next consumer — Sonnet's next iteration
   # or the outer planner cycle — sees the post-review test state, not the
@@ -372,6 +403,8 @@ run_opus_outer_review() {
     memory_context
   } | call_claude -p $CLAUDE_FLAGS --model "$OPUS_MODEL"
 
+  check_memory_files_location
+
   record_outer_review_sha
   run_tests
 
@@ -391,6 +424,8 @@ run_sonnet() {
 
     cat "$SONNET_PREFIX" "$task_file" "$SONNET_SUFFIX" \
       | call_claude -p $CLAUDE_FLAGS --model "$SONNET_MODEL"
+
+    check_memory_files_location
 
     # Refresh test_results.txt so any Opus reviewer triggered this iteration
     # (periodic or BLOCKED-unblock) sees current test state.
@@ -438,6 +473,8 @@ run_flat_loop() {
     cat "$SONNET_PREFIX" "$PLAN" "$SONNET_SUFFIX" \
       | call_claude -p $CLAUDE_FLAGS --model "$SONNET_MODEL"
 
+    check_memory_files_location
+
     local status
     status=$(status_line)
 
@@ -477,6 +514,8 @@ run_hierarchical_loop() {
       echo "---"
       memory_context
     } | call_claude -p $CLAUDE_FLAGS --model "$PLANNER_MODEL"
+
+    check_memory_files_location
 
     # Record HEAD right after the planner call so the next planner cycle's
     # git_log_summary shows only the work the executor/reviewer did between
