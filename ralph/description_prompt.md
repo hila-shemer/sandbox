@@ -16,16 +16,17 @@ the result to Opus:
 The resulting `implementation_plan.md` is then fed into `ralph.sh`, which runs
 an autonomous loop:
 
-- An **Opus planner** slices the plan into tasks (`CURRENT_TASK.md`), one at
+- A **Sonnet planner** slices the plan into tasks (`CURRENT_TASK.md`), one at
   a time, between executor cycles.
 - A **Sonnet executor** implements each slice from scratch — fresh context
   window every iteration, no memory of prior iterations except what's in
   `STATUS.md`, `DECISIONS.md`, `PROBLEMS.md`, and the git history.
-- An **Opus reviewer** spot-checks progress every few iterations and on
-  BLOCKED, writes guidance into the memory files.
+- An **Opus reviewer** spot-checks progress every few planner cycles (and
+  mid-task on BLOCKED), writing guidance into the memory files as a
+  defensive outside eye against Sonnet drift.
 
 Key consequence: the description you produce must be rich enough that Opus
-can turn it into a self-contained plan. Sonnet will never see the original
+can turn it into a self-contained plan. The loop will never see the original
 description — only Opus's plan, filtered through task slices. Ambiguity in
 your description compounds into drift across iterations.
 

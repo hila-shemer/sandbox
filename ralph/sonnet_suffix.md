@@ -28,6 +28,21 @@ changes.
 Do not write to `test_results.txt` directly from your implementation work.
 That file is an output of `run_tests.sh` only.
 
+## Running Tests — Use the Haiku Sub-Agent
+
+When you want to check whether tests pass, **do not run `./run_tests.sh`
+inline** in your own context. Instead, invoke the `test-runner` sub-agent
+(Haiku) via the Agent tool. It runs the script and returns a short summary,
+which is both cheaper and keeps bulk test output out of your context.
+
+- Use it after any non-trivial code change and before declaring `TASK_DONE`.
+- If the agent is missing (check `~/.claude/agents/test-runner.md`), you may
+  create one — keep it narrow: run the script, summarize the output, never
+  modify code. A template version ships with ralph; feel free to tune its
+  description or instructions if the project needs something more specific.
+- Authoring and debugging tests stays with you. The agent is for *running*
+  only.
+
 ## Reminders
 
 - Build incrementally. A working partial implementation committed is better than

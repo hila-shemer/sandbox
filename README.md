@@ -31,9 +31,12 @@ android/
   docker-compose.yml                Adds a Cuttlefish service, GPU, depends_on healthcheck
   entrypoint.sh                     Also waits for ADB at cuttlefish:6520
   entrypoint-cuttlefish.sh          Runs inside the Cuttlefish container
-ralph/                              Autonomous three-role (Opus planner, Opus reviewer,
-                                    Sonnet executor) implementation loop. Bind-mounted
-                                    read-only into /opt/ralph in both variants.
+ralph/                              Autonomous three-role (Sonnet planner, Sonnet
+                                    executor, periodic Opus reviewer) implementation
+                                    loop. Bind-mounted read-only into /opt/ralph in
+                                    both variants. Ships a `test-runner` Haiku
+                                    sub-agent under ralph/agents/ which is copied
+                                    into ~/.claude/agents/ on first container start.
 ```
 
 ## Base images
@@ -144,10 +147,11 @@ adb devices                     # cuttlefish:6520
 ## Autonomous loops (ralph)
 
 Both variants include the `ralph` harness at `/opt/ralph/` (bind-mounted from
-`sandbox/ralph/`, also on `$PATH`). Three-role architecture: Opus planner and
-Opus reviewer steer a Sonnet executor iterating with fresh context each loop,
-communicating through memory files in `/app`. Put your plan in
-`/home/dev/notes/plan.md` (so it stays outside `/app`) and run:
+`sandbox/ralph/`, also on `$PATH`). Three-role architecture: a Sonnet planner
+and Sonnet executor iterate with fresh context each loop, and a stronger Opus
+reviewer is called periodically as an outside eye (both mid-task and
+between planner cycles). Communication is through memory files in `/app`. Put
+your plan in `/home/dev/notes/plan.md` (so it stays outside `/app`) and run:
 
 ```
 ralph.sh /home/dev/notes/plan.md                 # hierarchical (Opus + Sonnet)

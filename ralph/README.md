@@ -1,8 +1,9 @@
 # Ralph — Autonomous Implementation Loop
 
-A three-role harness for autonomous coding with Claude. Opus plans and reviews,
-Sonnet executes. Named after Ralph Wiggum for reasons that presumably made
-sense at the time.
+A three-role harness for autonomous coding with Claude. Sonnet plans and
+executes; Opus is called periodically as a stronger outside eye to catch
+drift. Named after Ralph Wiggum for reasons that presumably made sense at
+the time.
 
 ## Quick Start
 
@@ -14,72 +15,81 @@ cat plan_prompt.md | claude --model opus > implementation_plan.md
 # 2. Run the loop
 ./ralph.sh implementation_plan.md
 
-# Or for simpler projects, skip Opus and run Sonnet solo:
+# Or for simpler projects, skip the reviewer and run Sonnet solo:
 ./ralph.sh implementation_plan.md --sonnet-only
 ```
 
 ## Architecture
 
 ```
-┌───────────────────────────────────────────────────────────┐
-│  ralph.sh                                                 │
-│                                                           │
-│  ┌─────────────────────────────────────────────────────┐  │
-│  │ OUTER LOOP: Planner (Opus)                          │  │
-│  │                                                     │  │
-│  │  • Reads plan + memory files + git log + real code  │  │
-│  │  • Verifies Sonnet's previous work (reads files!)   │  │
-│  │  • Writes CURRENT_TASK.md for next slice            │  │
-│  │  • Exits on COMPLETE or BLOCKED                     │  │
-│  │                                                     │  │
-│  │  ┌───────────────────────────────────────────────┐  │  │
-│  │  │ INNER LOOP: Executor (Sonnet, ≤8 iters)      │  │  │
-│  │  │                                               │  │  │
-│  │  │  • Reads CURRENT_TASK.md + memory files       │  │  │
-│  │  │  • Implements, commits, tests                 │  │  │
-│  │  │  • Updates memory files                       │  │  │
-│  │  │  • Exits on TASK_DONE / BLOCKED / max iters   │  │  │
-│  │  │                                               │  │  │
-│  │  │  ┌─────────────────────────────────────────┐  │  │  │
-│  │  │  │ PERIODIC: Reviewer (Opus)               │  │  │  │
-│  │  │  │                                         │  │  │  │
-│  │  │  │  Every 4 iters, or on BLOCKED:          │  │  │  │
-│  │  │  │  • Reads real code + runs tests         │  │  │  │
-│  │  │  │  • Diagnoses drift or problems          │  │  │  │
-│  │  │  │  • Writes guidance into memory files    │  │  │  │
-│  │  │  │  • Optionally makes small targeted fix  │  │  │  │
-│  │  │  │  • Inner loop continues after review    │  │  │  │
-│  │  │  └─────────────────────────────────────────┘  │  │  │
-│  │  └───────────────────────────────────────────────┘  │  │
-│  └─────────────────────────────────────────────────────┘  │
-└───────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────┐
+│  ralph.sh                                                  │
+│                                                            │
+│  ┌──────────────────────────────────────────────────────┐  │
+│  │ OUTER LOOP: Planner (Sonnet)                         │  │
+│  │                                                      │  │
+│  │  • Reads plan + memory files + git log + real code   │  │
+│  │  • Verifies executor's previous work (reads files!)  │  │
+│  │  • Writes CURRENT_TASK.md for next slice             │  │
+│  │  • Exits on COMPLETE or BLOCKED                      │  │
+│  │                                                      │  │
+│  │  ┌────────────────────────────────────────────────┐  │  │
+│  │  │ INNER LOOP: Executor (Sonnet, ≤8 iters)       │  │  │
+│  │  │                                                │  │  │
+│  │  │  • Reads CURRENT_TASK.md + memory files        │  │  │
+│  │  │  • Implements, commits, runs test-runner agent │  │  │
+│  │  │  • Updates memory files                        │  │  │
+│  │  │  • Exits on TASK_DONE / BLOCKED / max iters    │  │  │
+│  │  │                                                │  │  │
+│  │  │  ┌──────────────────────────────────────────┐  │  │  │
+│  │  │  │ PERIODIC: Reviewer (Opus, Mode A)        │  │  │  │
+│  │  │  │  Every REVIEW_INTERVAL iters, or on      │  │  │  │
+│  │  │  │  BLOCKED. Mid-task drift check.          │  │  │  │
+│  │  │  └──────────────────────────────────────────┘  │  │  │
+│  │  └────────────────────────────────────────────────┘  │  │
+│  │                                                      │  │
+│  │  ┌────────────────────────────────────────────────┐  │  │
+│  │  │ PERIODIC: Reviewer (Opus, Mode B)             │  │  │
+│  │  │  Every OUTER_REVIEW_INTERVAL planner cycles.   │  │  │
+│  │  │  Reviews the last N cycles as a window. Main   │  │  │
+│  │  │  defense against Sonnet-planner drift.         │  │  │
+│  │  └────────────────────────────────────────────────┘  │  │
+│  └──────────────────────────────────────────────────────┘  │
+└────────────────────────────────────────────────────────────┘
 ```
 
 ### Three Roles
 
-**Planner (Opus)** — called between task slices. Sees the full plan, all memory
-files, and the git log. Crucially, it also **reads the actual filesystem** to
-verify Sonnet's work against its claims in STATUS.md. Writes the next
-CURRENT_TASK.md or declares the project complete.
-
-**Reviewer (Opus)** — called mid-task, every N Sonnet iterations or when Sonnet
-hits BLOCKED. Same model, different role: it doesn't write new tasks, it
-diagnoses problems and leaves guidance in the memory files. Can make small
-targeted fixes (a config typo, a missing import) but doesn't do real
-implementation. The inner loop continues after a review.
+**Planner (Sonnet)** — called between task slices. Sees the full plan, all
+memory files, and the git log. Crucially, it also **reads the actual
+filesystem** to verify the executor's work against its claims in STATUS.md.
+Writes the next CURRENT_TASK.md or declares the project complete.
 
 **Executor (Sonnet)** — the workhorse. Reads CURRENT_TASK.md and the memory
-files, implements code, commits, tests. Doesn't need to see the full plan.
-Doesn't need to reason about big-picture progress — just executes the current
-slice.
+files, implements code, commits, and runs tests via the `test-runner` Haiku
+sub-agent. Doesn't need to see the full plan. Doesn't need to reason about
+big-picture progress — just executes the current slice.
+
+**Reviewer (Opus)** — called periodically in two modes:
+  - *Mode A (mid-task)*: inside the executor's inner loop, every N executor
+    iterations or when the executor hits BLOCKED. Catches drift within a
+    single task slice. In practice rarely fires because Sonnet usually
+    finishes a slice in one iteration — kept as backup.
+  - *Mode B (outer-cycle)*: between planner cycles, every N planner cycles.
+    Reviews the work of the last N cycles collectively — the primary defense
+    against a cheaper Sonnet planner silently drifting off-course across
+    multiple cycles.
+
+In both modes Opus doesn't write new tasks; it diagnoses problems and leaves
+guidance in the memory files. Can make small targeted fixes (a config typo,
+a missing import) but doesn't do real implementation.
 
 ### Why a Separate Reviewer?
 
-The original conversation considered having Sonnet decide when to escalate to
-Opus (init5). The problem: recognizing that you're confused is itself a hard
-reasoning task. Sonnet catches obvious blockers but misses subtle drift —
-working confidently in the wrong direction. The periodic reviewer catches
-drift mechanically, without depending on Sonnet's self-awareness.
+Sonnet catches obvious blockers but misses subtle drift — working confidently
+in the wrong direction. The periodic reviewer catches drift mechanically,
+without depending on Sonnet's self-awareness, and uses a stronger model so
+its verdicts carry more weight than Sonnet second-guessing itself.
 
 The reviewer is also the mechanism for unblocking: when Sonnet writes BLOCKED,
 the reviewer diagnoses the issue, writes guidance into DECISIONS.md/PROBLEMS.md,
@@ -91,9 +101,12 @@ rewrites STATUS.md with a path forward, and the inner loop continues.
 ralph.sh            — main orchestrator
 sonnet_prefix.md    — execution prompt prefix (prepended to task spec)
 sonnet_suffix.md    — execution reminders (appended after task spec)
-opus_planner.md     — planner prompt: reviews work, writes next task
-opus_reviewer.md    — reviewer prompt: mid-task diagnosis and guidance
+planner.md          — planner prompt: reviews work, writes next task
+reviewer.md         — reviewer prompt: mid-task + outer-cycle diagnosis
 plan_prompt.md      — template for generating implementation plans
+agents/             — sub-agent definitions shipped with ralph (e.g.
+                      test-runner.md, a Haiku agent the executor uses
+                      to run ./run_tests.sh without bloating its context)
 ```
 
 ## Memory Files (created at runtime in the project directory)
@@ -114,6 +127,14 @@ test state. You do not need to write this script; Sonnet creates it on the
 first iteration that adds testable code and keeps it current as new tests
 land.
 
+When the executor wants to check whether tests pass, it invokes the
+`test-runner` Haiku sub-agent (shipped in `ralph/agents/test-runner.md`) via
+the Agent tool rather than running the script inline. This keeps bulk test
+output out of the executor's context and runs the check on a cheaper model.
+The agent is installed into `~/.claude/agents/` the first time the container
+starts; tweaks survive restarts (the sandbox entrypoint doesn't overwrite an
+existing agent file).
+
 ## Modes
 
 ### Hierarchical (default): `./ralph.sh plan.md`
@@ -128,19 +149,21 @@ simpler, fine for well-scoped projects.
 
 ## Configuration
 
-| Variable          | Default      | Description                             |
-|-------------------|--------------|-----------------------------------------|
-| `RALPH_DIR`       | script dir   | Where prompt .md files live             |
-| `OPUS_MODEL`      | `opus`       | Model for planner + reviewer            |
-| `SONNET_MODEL`    | `sonnet`     | Model for executor                      |
-| `MAX_INNER`       | `8`          | Sonnet iterations per task slice        |
-| `MAX_OUTER`       | `50`         | Planner cycles before abort             |
-| `MAX_FLAT`        | `100`        | Iterations in `--sonnet-only` flat mode before abort |
-| `REVIEW_INTERVAL` | `4`          | Review every N Sonnet iterations (0=off)|
-| `RALPH_LOG`       | `ralph-<ts>.log` | Log file path (one per run by default) |
-| `RETRY_MAX_ATTEMPTS` | `8`       | Attempts per `claude` call before aborting the loop |
-| `RETRY_BASE_DELAY`   | `30`      | Seconds before the first retry; doubles each failure |
-| `RETRY_MAX_DELAY`    | `900`     | Cap on per-retry backoff (15 min by default)        |
+| Variable                | Default          | Description                             |
+|-------------------------|------------------|-----------------------------------------|
+| `RALPH_DIR`             | script dir       | Where prompt .md files live             |
+| `PLANNER_MODEL`         | `sonnet`         | Model for the planner                   |
+| `SONNET_MODEL`          | `sonnet`         | Model for the executor                  |
+| `OPUS_MODEL`            | `opus`           | Model for the reviewer (both modes)     |
+| `MAX_INNER`             | `8`              | Executor iterations per task slice      |
+| `MAX_OUTER`             | `50`             | Planner cycles before abort             |
+| `MAX_FLAT`              | `100`            | Iterations in `--sonnet-only` flat mode before abort |
+| `REVIEW_INTERVAL`       | `4`              | Mid-task review every N executor iters (0=off) |
+| `OUTER_REVIEW_INTERVAL` | `3`              | Outer-cycle review every N planner cycles (0=off) |
+| `RALPH_LOG`             | `ralph-<ts>.log` | Log file path (one per run by default)  |
+| `RETRY_MAX_ATTEMPTS`    | `30`             | Attempts per `claude` call before aborting the loop |
+| `RETRY_BASE_DELAY`      | `30`             | Seconds before the first retry; doubles each failure |
+| `RETRY_MAX_DELAY`       | `900`            | Cap on per-retry backoff (15 min by default) |
 
 ## Docker Usage
 
@@ -183,7 +206,7 @@ Each `ralph.sh` invocation creates one log file, `ralph-<timestamp>.log`
 - status markers from the `log()` helper (iteration boundaries, lifecycle
   events), and
 - the tee'd stdout of every `claude -p` call, prefixed with a header like
-  `=== [HH:MM:SS] Opus planner cycle 3 ===` so you can tell which call
+  `=== [HH:MM:SS] Planner cycle 3 ===` so you can tell which call
   you're reading.
 
 To watch progress live in another pane:
@@ -240,9 +263,12 @@ the last-known-good commit if a revert is needed.
 
 ### Token economics (rough estimates)
 
-- Opus planner call: ~$0.15-0.50 (reads full plan + memory + inspects code)
-- Opus reviewer call: ~$0.10-0.30 (reads task + memory + inspects code)
+- Sonnet planner call: ~$0.03-0.12 (reads full plan + memory + inspects code)
 - Sonnet executor call: ~$0.02-0.08
-- Typical task slice: 1 planner + 1 reviewer + 5 executor = ~$0.35-1.20
-- Full project (10 task slices): ~$3.50-12.00
-- Flat `--sonnet-only` mode: roughly 5-10x cheaper
+- Opus reviewer call: ~$0.10-0.30 (reads task + memory + inspects code),
+  amortized over `OUTER_REVIEW_INTERVAL` planner cycles
+- Haiku test-runner agent call: trivially small per invocation
+- Typical task slice (no outer review): 1 planner + ~1 executor = ~$0.05-0.20
+- Full project (10 task slices, default intervals): ~$1.00-4.00
+- Flat `--sonnet-only` mode: roughly 2-3x cheaper than hierarchical now that
+  the planner and executor are the same model

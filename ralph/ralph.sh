@@ -5,23 +5,36 @@ set -euo pipefail
 # ralph.sh — autonomous implementation loop
 #
 # Three-role architecture:
-#   Planner  (Opus)  : decomposes plan into task slices
-#   Reviewer (Opus)  : periodic mid-task review, catches drift
+#   Planner  (Sonnet): decomposes plan into task slices
 #   Executor (Sonnet): implements the current task slice
+#   Reviewer (Opus)  : periodic outside-eye review, catches drift
+#
+# The reviewer is called in two places, both periodic:
+#   - mid-task (inside the executor's inner loop), to catch Sonnet drift
+#     within a single task slice
+#   - outer-cycle (between planner cycles), to catch Sonnet-on-Sonnet
+#     drift across a window of planner cycles
 #
 # Usage:
 #   ./ralph.sh <implementation_plan.md>
-#   ./ralph.sh <implementation_plan.md> --sonnet-only   # flat loop, no Opus
+#   ./ralph.sh <implementation_plan.md> --sonnet-only   # flat loop, no reviewer
 #
 # Environment variables:
 #   RALPH_DIR          — directory containing prompt files (default: script dir)
-#   OPUS_MODEL         — model for planning/review (default: opus)
+#   PLANNER_MODEL      — model for the planner (default: sonnet)
 #   SONNET_MODEL       — model for execution (default: sonnet)
+#   OPUS_MODEL         — model for the reviewer (default: opus)
 #   MAX_INNER          — max Sonnet iterations per task (default: 8)
-#   MAX_OUTER          — max Opus planning cycles (default: 50)
+#   MAX_OUTER          — max planner cycles (default: 50)
 #   MAX_FLAT           — max Sonnet iterations in --sonnet-only flat mode
 #                        before aborting with nonzero exit (default: 100)
-#   REVIEW_INTERVAL    — Opus review every N Sonnet iterations (default: 4)
+#   REVIEW_INTERVAL    — reviewer call every N executor iterations inside
+#                        a single task slice (default: 4, 0=disable).
+#                        Rarely fires in practice — Sonnet usually finishes
+#                        a slice in 1 iteration — but kicks in if it stalls.
+#   OUTER_REVIEW_INTERVAL — reviewer call every N planner cycles
+#                        (default: 3, 0=disable). This is the main line of
+#                        defense against the Sonnet planner silently drifting.
 #   RALPH_LOG          — per-run log of status markers AND every `claude -p`
 #                        call's stdout (default: ralph-<timestamp>.log, one
 #                        per invocation). Tail in another pane to watch
@@ -49,12 +62,14 @@ SONNET_ONLY=false
 # Resolve prompt directory (where the .md prompt files live)
 RALPH_DIR="${RALPH_DIR:-$(cd "$(dirname "$0")" && pwd)}"
 
-OPUS_MODEL="${OPUS_MODEL:-opus}"
+PLANNER_MODEL="${PLANNER_MODEL:-sonnet}"
 SONNET_MODEL="${SONNET_MODEL:-sonnet}"
+OPUS_MODEL="${OPUS_MODEL:-opus}"
 MAX_INNER="${MAX_INNER:-8}"
 MAX_OUTER="${MAX_OUTER:-50}"
 MAX_FLAT="${MAX_FLAT:-100}"
 REVIEW_INTERVAL="${REVIEW_INTERVAL:-4}"
+OUTER_REVIEW_INTERVAL="${OUTER_REVIEW_INTERVAL:-3}"
 # LOG is the unified per-run log. It receives both status markers from log()
 # and the tee'd stdout of every `claude -p` call, so a single `tail -f` gives
 # the full narrative. Default is timestamped in main() — override with
@@ -73,8 +88,8 @@ RETRY_MAX_DELAY="${RETRY_MAX_DELAY:-900}"
 # Prompt files
 SONNET_PREFIX="$RALPH_DIR/sonnet_prefix.md"
 SONNET_SUFFIX="$RALPH_DIR/sonnet_suffix.md"
-OPUS_PLANNER="$RALPH_DIR/opus_planner.md"
-OPUS_REVIEWER="$RALPH_DIR/opus_reviewer.md"
+PLANNER_PROMPT="$RALPH_DIR/planner.md"
+REVIEWER_PROMPT="$RALPH_DIR/reviewer.md"
 
 # ── Helpers ──────────────────────────────────────────────────────────
 
@@ -221,7 +236,7 @@ check_prompt_files() {
       [[ -f "$f" ]] || missing+=("$f")
     done
   else
-    for f in "$SONNET_PREFIX" "$SONNET_SUFFIX" "$OPUS_PLANNER" "$OPUS_REVIEWER"; do
+    for f in "$SONNET_PREFIX" "$SONNET_SUFFIX" "$PLANNER_PROMPT" "$REVIEWER_PROMPT"; do
       [[ -f "$f" ]] || missing+=("$f")
     done
   fi
@@ -275,14 +290,20 @@ memory_context() {
   echo '```'
 }
 
-# ── Opus reviewer (mid-task) ─────────────────────────────────────────
+# ── Reviewer (Opus, two modes) ───────────────────────────────────────
 
+# Mode A: called mid-task inside the executor's inner loop.
 run_opus_review() {
   log "  >> Opus review (mid-task)"
   run_log_header "Opus reviewer (mid-task)"
 
   {
-    cat "$OPUS_REVIEWER"
+    cat "$REVIEWER_PROMPT"
+    echo ""
+    echo "## Review Mode: Mid-Task"
+    echo ""
+    echo "You are inside the executor's inner loop. Scope is the single in-flight"
+    echo "task described below. See \"Mode A\" in the prompt above for guidance."
     echo ""
     echo "## Current Task Being Executed"
     echo ""
@@ -292,13 +313,69 @@ run_opus_review() {
     memory_context
   } | call_claude -p $CLAUDE_FLAGS --model "$OPUS_MODEL"
 
-  # Reviewer may have committed a small fix (see opus_reviewer.md §4).
+  # Reviewer may have committed a small fix (see reviewer.md §4).
   # Refresh test_results.txt so the next consumer — Sonnet's next iteration
   # or the outer planner cycle — sees the post-review test state, not the
   # pre-review snapshot Sonnet handed in.
   run_tests
 
   log "  << Opus review complete"
+}
+
+# Git log scoped to the window since the last outer-cycle review.
+# Falls back to the last 60 commits if no marker exists yet (first review).
+outer_git_log_summary() {
+  local marker=".ralph/last_outer_review_sha"
+  if [[ -f "$marker" ]]; then
+    local since
+    since=$(cat "$marker" 2>/dev/null || true)
+    if [[ -n "$since" ]] && git rev-parse --verify --quiet "${since}^{commit}" >/dev/null 2>&1; then
+      git log --oneline "$since..HEAD" 2>/dev/null \
+        || echo "(no new commits since last outer review)"
+      return
+    fi
+  fi
+  git log --oneline -60 2>/dev/null || echo "(no commits yet)"
+}
+
+record_outer_review_sha() {
+  mkdir -p .ralph
+  git rev-parse HEAD > .ralph/last_outer_review_sha 2>/dev/null || true
+}
+
+# Mode B: called between planner cycles, every OUTER_REVIEW_INTERVAL cycles.
+# Scope is the span of planner cycles since the last outer review, not a
+# single task. This is the main line of defense against a cheaper Sonnet
+# planner silently drifting off-course — Opus reads the git log and memory
+# files for that window and leaves corrections in STATUS/DECISIONS/PROBLEMS
+# for the next planner cycle to pick up.
+run_opus_outer_review() {
+  local cycles_since="$1"
+  log "  >> Opus review (outer-cycle, last $cycles_since planner cycle(s))"
+  run_log_header "Opus reviewer (outer-cycle)"
+
+  {
+    cat "$REVIEWER_PROMPT"
+    echo ""
+    echo "## Review Mode: Outer-Cycle"
+    echo ""
+    echo "You are being called between planner cycles. Scope is the last"
+    echo "$cycles_since planner cycle(s) of work — not a single in-flight task."
+    echo "See \"Mode B\" in the prompt above for guidance."
+    echo ""
+    echo "### Commits since last outer review"
+    echo '```'
+    outer_git_log_summary
+    echo '```'
+    echo ""
+    echo "---"
+    memory_context
+  } | call_claude -p $CLAUDE_FLAGS --model "$OPUS_MODEL"
+
+  record_outer_review_sha
+  run_tests
+
+  log "  << Opus outer-cycle review complete"
 }
 
 # ── Sonnet execution (inner loop) ───────────────────────────────────
@@ -379,19 +456,19 @@ run_flat_loop() {
   return 1
 }
 
-# ── Main: hierarchical loop with Opus planning ──────────────────────
+# ── Main: hierarchical loop with planner + periodic reviewer ─────────
 
 run_hierarchical_loop() {
   local outer=0
 
   while (( outer < MAX_OUTER )); do
     outer=$((outer + 1))
-    log "=== Opus planning cycle $outer ==="
-    run_log_header "Opus planner cycle $outer"
+    log "=== Planner cycle $outer ==="
+    run_log_header "Planner cycle $outer"
 
-    # Build Opus planner context
+    # Build planner context
     {
-      cat "$OPUS_PLANNER"
+      cat "$PLANNER_PROMPT"
       echo ""
       echo "## Full Implementation Plan"
       echo ""
@@ -399,27 +476,27 @@ run_hierarchical_loop() {
       echo ""
       echo "---"
       memory_context
-    } | call_claude -p $CLAUDE_FLAGS --model "$OPUS_MODEL"
+    } | call_claude -p $CLAUDE_FLAGS --model "$PLANNER_MODEL"
 
     # Record HEAD right after the planner call so the next planner cycle's
-    # git_log_summary shows only the work Sonnet/reviewer did between planner
-    # invocations. Reviewer never touches this marker.
+    # git_log_summary shows only the work the executor/reviewer did between
+    # planner invocations. Reviewer never touches this marker.
     record_planner_sha
 
-    # Check what Opus wrote (normalized: tolerates "## COMPLETE", whitespace,
-    # lowercase, BOMs, etc.)
+    # Check what the planner wrote (normalized: tolerates "## COMPLETE",
+    # whitespace, lowercase, BOMs, etc.)
     local task_status
     task_status=$(status_line CURRENT_TASK.md)
 
     if [[ "$task_status" == "COMPLETE" ]]; then
-      log "✓ Opus declares project complete after $outer planning cycle(s)"
+      log "✓ Planner declares project complete after $outer planning cycle(s)"
       return 0
     elif [[ "$task_status" == BLOCKED* ]]; then
-      log "✗ Opus blocked: $task_status"
+      log "✗ Planner blocked: $task_status"
       return 1
     fi
 
-    # Run Sonnet on the current task (with periodic reviews)
+    # Run Sonnet on the current task (with periodic mid-task reviews)
     run_sonnet CURRENT_TASK.md
     local sonnet_exit=$?
 
@@ -429,7 +506,14 @@ run_hierarchical_loop() {
       return 0
     fi
 
-    # Continue to next Opus planning cycle regardless —
+    # Periodic outer-cycle review: every OUTER_REVIEW_INTERVAL planner cycles,
+    # call Opus as a stronger outside eye. Defends against a cheaper Sonnet
+    # planner silently drifting across multiple cycles. 0 disables.
+    if (( OUTER_REVIEW_INTERVAL > 0 && outer % OUTER_REVIEW_INTERVAL == 0 )); then
+      run_opus_outer_review "$OUTER_REVIEW_INTERVAL"
+    fi
+
+    # Continue to next planner cycle regardless —
     # planner will review the state and decide what's next
   done
 
