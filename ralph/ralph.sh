@@ -32,8 +32,10 @@ set -euo pipefail
 #                        "--dangerously-skip-permissions" so tool use is
 #                        auto-approved (the container is the permission boundary).
 #   RETRY_MAX_ATTEMPTS — total claude attempts per call site, incl. the
-#                        first try (default: 8). After exhausting retries
-#                        the loop aborts.
+#                        first try (default: 30). With the default 30s base
+#                        and 900s cap, 30 attempts covers ~6h30m of sleep —
+#                        enough to ride out a 5-hour quota window reset.
+#                        After exhausting retries the loop aborts.
 #   RETRY_BASE_DELAY   — seconds to wait before the first retry, doubled
 #                        on each subsequent failure (default: 30).
 #   RETRY_MAX_DELAY    — cap on per-retry backoff in seconds
@@ -59,7 +61,7 @@ REVIEW_INTERVAL="${REVIEW_INTERVAL:-4}"
 # RALPH_LOG if you want to pin the filename (e.g. for an outer wrapper).
 LOG="${RALPH_LOG:-}"
 CLAUDE_FLAGS="${CLAUDE_FLAGS:-}"
-RETRY_MAX_ATTEMPTS="${RETRY_MAX_ATTEMPTS:-8}"
+RETRY_MAX_ATTEMPTS="${RETRY_MAX_ATTEMPTS:-30}"
 RETRY_BASE_DELAY="${RETRY_BASE_DELAY:-30}"
 RETRY_MAX_DELAY="${RETRY_MAX_DELAY:-900}"
 
@@ -162,11 +164,13 @@ run_tests() {
 }
 
 # Wraps a single `claude -p ...` invocation with retry + exponential backoff
-# on non-zero exit. Transient failures (API overload, rate limit, network
-# blip) usually clear in minutes; structural failures (bad auth, missing
-# model, prompt too large) don't. We can't cheaply distinguish from the CLI
-# exit code alone, so we retry uniformly and cap attempts — a broken config
-# still fails within an hour or so instead of spinning forever.
+# on non-zero exit. Transient failures (API overload, network blip) clear in
+# minutes; subscription quota exhaustion clears on the 5-hour window reset;
+# structural failures (bad auth, missing model, prompt too large) don't clear
+# at all. We can't cheaply distinguish from the CLI exit code alone, so we
+# retry uniformly with the 900s cap — at 15 min per retry a broken config is
+# obviously stuck in the log, just bounded (~6h30m at the default 30 attempts)
+# instead of spinning forever.
 #
 # Stdin is captured once into a tempfile so each retry replays the same
 # prompt. stdout/stderr are tee'd to $LOG exactly as the original inline
