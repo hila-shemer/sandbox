@@ -171,3 +171,8 @@ boundary. See `ralph/README.md` for the full design.
   host with container storage on a `/home` bind mount; harmless elsewhere.
 - The Cuttlefish container runs `privileged: true` — it needs direct KVM and
   device access to boot the virtual Android device.
+- On every start, the entrypoint runs `npm install -g @anthropic-ai/claude-code@latest`
+  into `/home/dev/.npm-global` (on the persistent home volume) and puts that
+  directory at the front of `$PATH`. This keeps the Claude CLI current without
+  rebuilding the image. If the install fails (e.g., offline), the container
+  falls back to the baked-in `/usr/bin/claude` from the base image.

@@ -1,6 +1,21 @@
 #!/bin/bash
 set -e
 
+# Keep Claude Code CLI up to date. The base image bakes a version in at /usr/bin,
+# but it drifts as Anthropic releases new versions. Install a fresh copy into a
+# dev-writable prefix on the persistent home volume — that directory sits ahead
+# of /usr/bin on PATH (see the export below), so the user-local copy wins when
+# present and we fall back to the baked-in binary if the install fails (e.g.,
+# offline). The prefix persists across restarts so only true upgrades re-download.
+export NPM_CONFIG_PREFIX=/home/dev/.npm-global
+export PATH="$NPM_CONFIG_PREFIX/bin:$PATH"
+mkdir -p "$NPM_CONFIG_PREFIX"
+if npm install -g @anthropic-ai/claude-code@latest >/dev/null 2>&1; then
+    echo "[entrypoint] claude updated to $(claude --version 2>/dev/null || echo '?')"
+else
+    echo "[entrypoint] claude auto-update failed — falling back to baked-in version"
+fi
+
 # Sync Claude preferences from host (read-only mount) into the persistent home volume.
 # Only copies preferences — auth files (sessions, .claude.json) are left untouched.
 # settings.json is merged rather than overwritten so container-written keys
@@ -22,6 +37,19 @@ if [ -d /host-claude ]; then
             cp /host-claude/settings.json "$dst"
         fi
     fi
+fi
+
+# Install ralph-shipped sub-agents (e.g. test-runner, a Haiku agent used to
+# offload test execution from the main loop). Copied only when not already
+# present so tweaks by the Claude inside the container — or by the host —
+# survive restarts. The persistent home volume is what retains them.
+if [ -d /opt/ralph/agents ]; then
+    mkdir -p /home/dev/.claude/agents
+    for src in /opt/ralph/agents/*.md; do
+        [ -f "$src" ] || continue
+        dst="/home/dev/.claude/agents/$(basename "$src")"
+        [ -e "$dst" ] || cp "$src" "$dst"
+    done
 fi
 
 # Append sandbox-specific guidance to the user-level CLAUDE.md. Host CLAUDE.md
@@ -81,7 +109,8 @@ if ! grep -q '# sandbox-ralph' /home/dev/.bashrc 2>/dev/null; then
     cat >> /home/dev/.bashrc <<'EOF'
 
 # sandbox-ralph
-export PATH="/opt/ralph:$PATH"
+export NPM_CONFIG_PREFIX=/home/dev/.npm-global
+export PATH="/home/dev/.npm-global/bin:/opt/ralph:$PATH"
 export CLAUDE_FLAGS="--dangerously-skip-permissions"
 EOF
 fi
