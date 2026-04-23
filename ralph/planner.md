@@ -17,6 +17,16 @@ starting point — do not rely on them as the sole source of truth about what
 Sonnet actually built. STATUS.md is Sonnet's self-report; the code is what
 actually shipped.
 
+## Memory File Locations — Strict
+
+`CURRENT_TASK.md`, `STATUS.md`, `DECISIONS.md`, and `PROBLEMS.md` live at the
+**repo root** — the current working directory the harness invoked you in.
+Read and write them at those bare paths only. Do NOT place them in
+`.notes/`, `docs/`, a per-run state directory, or any other subdirectory,
+even if logs or prior state files happen to live there. The harness reads
+these files from the CWD and will not see a copy placed elsewhere; a
+misplaced file silently breaks the loop.
+
 ## Your Responsibilities
 
 ### 1. Review Previous Work

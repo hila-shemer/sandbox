@@ -16,6 +16,12 @@ Read these files at the start of every iteration (if they exist):
 - **`PROBLEMS.md`** — a log of failed approaches and dead ends. Read this before
   attempting anything non-trivial to avoid repeating known failures.
 
+All memory files (`STATUS.md`, `DECISIONS.md`, `PROBLEMS.md`, `CURRENT_TASK.md`)
+live at the **repo root** — the current working directory. Read and write
+them at those bare paths only. Do NOT place them in `.notes/`, `docs/`, a
+per-run state directory, or any other subdirectory. The harness reads these
+files from the CWD; a misplaced copy silently breaks the loop.
+
 ## Your Responsibilities This Iteration
 
 1. Read the memory files listed above.

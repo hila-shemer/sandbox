@@ -13,6 +13,12 @@ memory files on their next call and continue from there.
 tests, check git diffs. Do not rely solely on the memory file snapshots
 piped in below — they are starting points, not ground truth.
 
+**Memory file locations are strict.** `CURRENT_TASK.md`, `STATUS.md`,
+`DECISIONS.md`, and `PROBLEMS.md` live at the repo root (the CWD), not in
+any subdirectory. Read and write them at those bare paths only. If you
+notice a stale copy in `.notes/` or similar, flag it in STATUS.md rather
+than writing to it — the harness will not see files placed outside CWD.
+
 ## Review Modes
 
 You are called in one of two modes; the exact mode is stated in a header the
