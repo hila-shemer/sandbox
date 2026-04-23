@@ -1,26 +1,17 @@
 services:
   claude-android:
+    extends:
+      file: ../docker-compose.base.yml
+      service: claude-common
     image: claude-android
     build:
-      context: ${PROJECT_DIR:?set PROJECT_DIR=/abs/path/to/project}
-      dockerfile: ${SANDBOX_DIR:?set SANDBOX_DIR=/abs/path/to/sandbox}/android/Dockerfile
       args:
-        HOST_UID: "${HOST_UID:-1000}"
-        HOST_GID: "${HOST_GID:-1000}"
+        BASE_IMAGE: ghcr.io/hila-shemer/claude-android-base:latest
     volumes:
-      - claude-android-home:/home/dev      # persists credentials, AVD, gradle cache across runs
-      - ${SANDBOX_DIR}/android/entrypoint.sh:/entrypoint.sh:ro,z
-      - ${SANDBOX_DIR}/save-patch:/usr/local/bin/save-patch:ro,z
-      - ${SANDBOX_DIR}/ralph:/opt/ralph:ro,z
-      - ${PROJECT_DIR}/patches:/output:z
-      - ${PROJECT_DIR}/.notes:/home/dev/notes:z
-      - ${HOME}/.claude:/host-claude:ro,z
+      - claude-android-home:/home/dev   # persists credentials, AVD, gradle cache across runs
     environment:
       - ADB_TARGET=cuttlefish:6520
-    shm_size: '8g'
     mem_limit: 24g
-    stdin_open: true
-    tty: true
     depends_on:
       cuttlefish:
         condition: service_healthy

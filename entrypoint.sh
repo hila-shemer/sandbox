@@ -71,6 +71,12 @@ You are running inside a Docker sandbox. Conventions specific to this environmen
   appears in patches.
 - **`baseline`** is a git tag on the commit made when the container started.
   Your delta from it = what you have changed. `git diff baseline` to inspect.
+EOF
+
+# Android-variant extras: gated on $ADB_TARGET being set, which only the
+# android compose file does. Keeps the entrypoint single-file across variants.
+if [ -n "$ADB_TARGET" ]; then
+    cat >> /home/dev/.claude/CLAUDE.md <<'EOF'
 - **JDK 21 is at `/usr/lib/jvm/java-21-openjdk-amd64`** (Debian path), not
   `/usr/lib/jvm/java-21-openjdk` (Fedora path). If a project's
   `gradle.properties` pins `org.gradle.java.home` to the Fedora path, Gradle
@@ -79,6 +85,7 @@ You are running inside a Docker sandbox. Conventions specific to this environmen
   don't conclude the sandbox lacks a JDK.
 - There's an Android emulator attached. run `adb devices` and it should show up.
 EOF
+fi
 
 # Initialize a fresh git repo from the copied source so the container
 # has a real git history to commit against, isolated from the host repo.

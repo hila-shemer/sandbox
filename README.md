@@ -19,17 +19,21 @@ the container's commits since startup as a `git format-patch` series into
 ## Layout
 
 ```
+Dockerfile                          Shared; ARG BASE_IMAGE selects the final stage
+                                    (claude-loop-base by default, android overrides)
+entrypoint.sh                       Shared; android-only blocks gated on $ADB_TARGET
+docker-compose.base.yml             Shared service definition extended by both variants
+sandbox.sh                          Dispatcher: ./sandbox.sh {run|attach|stop} {loop|android}
+save-patch                          Helper binary mounted at /usr/local/bin/save-patch
+
 base/
   Dockerfile.claude-loop-base       Ubuntu 24.04 + generic + C toolchain + Claude Code
   Dockerfile.claude-android-base    FROM loop-base, adds JDK + Android SDK
 loop/
-  Dockerfile                        User setup + project bake, FROM claude-loop-base
-  docker-compose.yml
-  entrypoint.sh
+  docker-compose.yml                Extends docker-compose.base.yml; home volume + mem_limit
 android/
-  Dockerfile                        User setup + project bake, FROM claude-android-base
-  docker-compose.yml                Adds a Cuttlefish service, GPU, depends_on healthcheck
-  entrypoint.sh                     Also waits for ADB at cuttlefish:6520
+  docker-compose.yml                Extends base, sets BASE_IMAGE + ADB_TARGET, adds
+                                    Cuttlefish service with healthcheck
   entrypoint-cuttlefish.sh          Runs inside the Cuttlefish container
 ralph/                              Autonomous three-role (Sonnet planner, Sonnet
                                     executor, periodic Opus reviewer) implementation
@@ -86,34 +90,32 @@ Optional:
   isn't 1000 so files written to bind-mounted directories end up owned by the
   host user.
 
-### `loop/` — Claude-only container
+The `sandbox.sh` dispatcher does the env-var plumbing for you. It derives
+`SANDBOX_DIR` from its own location, takes `PROJECT_DIR` from `$PWD` (or an
+override), and exposes three commands:
 
 ```
-export SANDBOX_DIR=$HOME/proj/sandbox
-export PROJECT_DIR=$HOME/proj/my-project
-export HOST_UID=$(id -u)
-export HOST_GID=$(id -g)
-mkdir -p "$PROJECT_DIR/patches"
+$SANDBOX_DIR/sandbox.sh run    {loop|android}    # build + run --rm
+$SANDBOX_DIR/sandbox.sh attach {loop|android}    # docker exec -it into a live container
+$SANDBOX_DIR/sandbox.sh stop   {loop|android}    # docker compose down
+```
 
-docker compose -f "$SANDBOX_DIR/loop/docker-compose.yml" build
-docker compose -f "$SANDBOX_DIR/loop/docker-compose.yml" run --rm claude-loop
+### `loop` — Claude-only container
+
+```
+cd $HOME/proj/my-project
+$HOME/proj/sandbox/sandbox.sh run loop
 ```
 
 The project tree is baked into `/app`; a fresh git repo is initialized on
 first run. Edits stay isolated from the host; use `/output` (= host's
 `$PROJECT_DIR/patches`) to export patches or artifacts.
 
-### `android/` — Claude + Cuttlefish device
+### `android` — Claude + Cuttlefish device
 
 ```
-export SANDBOX_DIR=$HOME/proj/sandbox
-export PROJECT_DIR=$HOME/proj/my-android-project
-export HOST_UID=$(id -u)
-export HOST_GID=$(id -g)
-mkdir -p "$PROJECT_DIR/patches"
-
-docker compose -f "$SANDBOX_DIR/android/docker-compose.yml" build
-docker compose -f "$SANDBOX_DIR/android/docker-compose.yml" run --rm claude-android
+cd $HOME/proj/my-android-project
+$HOME/proj/sandbox/sandbox.sh run android
 ```
 
 The Cuttlefish service starts first; `claude-android` waits on its
