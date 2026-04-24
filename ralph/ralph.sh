@@ -115,10 +115,16 @@ status_line() {
   # then uppercase. Tolerates "﻿TASK_DONE", "## TASK_DONE", "  task_done  ",
   # etc. BLOCKED:<reason> still matches a BLOCKED* glob because the prefix
   # is preserved (colon and reason get flattened but that's fine).
-  head -n 1 "${1:-STATUS.md}" 2>/dev/null \
-    | sed $'s/^\xef\xbb\xbf//' \
-    | tr -d '[:space:]#' \
-    | tr '[:lower:]' '[:upper:]'
+  #
+  # Trailing `|| true` keeps this function return-0 even when the target
+  # file is missing: `head -n 1 /nonexistent` exits 1, and with pipefail
+  # the whole pipe would inherit that. Callers use `x=$(status_line ...)`
+  # in plain assignments, and under `set -e` a failing command substitution
+  # would abort the whole run before we ever see the empty string.
+  { head -n 1 "${1:-STATUS.md}" 2>/dev/null \
+      | sed $'s/^\xef\xbb\xbf//' \
+      | tr -d '[:space:]#' \
+      | tr '[:lower:]' '[:upper:]'; } || true
 }
 
 git_log_summary() {
@@ -231,6 +237,8 @@ call_claude() {
 # rename the offending file.
 check_memory_files_location() {
   local stray
+  # `|| true` guards against find itself exiting non-zero (permission errors
+  # on a pruned subtree, etc.) — we only care about what landed on stdout.
   stray=$(find . -path ./.git -prune -o \
       \( -name CURRENT_TASK.md -o -name STATUS.md \
       -o -name DECISIONS.md -o -name PROBLEMS.md \) \
@@ -238,7 +246,7 @@ check_memory_files_location() {
       -not -path './STATUS.md' \
       -not -path './DECISIONS.md' \
       -not -path './PROBLEMS.md' \
-      -print 2>/dev/null)
+      -print 2>/dev/null || true)
   if [[ -n "$stray" ]]; then
     log "✗ Memory file(s) placed outside repo root — aborting:"
     while IFS= read -r f; do
@@ -434,7 +442,7 @@ run_sonnet() {
     local status
     status=$(status_line)
 
-    if [[ "$status" == "TASK_DONE" || "$status" == "DONE" ]]; then
+    if [[ "$status" == TASK_DONE* || "$status" == DONE* ]]; then
       log "  Sonnet reports: $status"
       return 0
     elif [[ "$status" == BLOCKED* ]]; then
@@ -478,7 +486,7 @@ run_flat_loop() {
     local status
     status=$(status_line)
 
-    if [[ "$status" == "DONE" ]]; then
+    if [[ "$status" == DONE* ]]; then
       log "✓ Complete after $iteration iteration(s)"
       return 0
     elif [[ "$status" == BLOCKED* ]]; then
@@ -527,7 +535,7 @@ run_hierarchical_loop() {
     local task_status
     task_status=$(status_line CURRENT_TASK.md)
 
-    if [[ "$task_status" == "COMPLETE" ]]; then
+    if [[ "$task_status" == COMPLETE* ]]; then
       log "✓ Planner declares project complete after $outer planning cycle(s)"
       return 0
     elif [[ "$task_status" == BLOCKED* ]]; then
@@ -535,12 +543,14 @@ run_hierarchical_loop() {
       return 1
     fi
 
-    # Run Sonnet on the current task (with periodic mid-task reviews)
-    run_sonnet CURRENT_TASK.md
-    local sonnet_exit=$?
+    # Run Sonnet on the current task (with periodic mid-task reviews).
+    # Non-zero return (BLOCKED after review, or MAX_INNER exhausted) is
+    # expected — the planner picks up on the next cycle. Without `|| true`,
+    # `set -e` would abort the whole run here.
+    run_sonnet CURRENT_TASK.md || true
 
     # If Sonnet declared the whole project DONE
-    if [[ "$(status_line)" == "DONE" ]]; then
+    if [[ "$(status_line)" == DONE* ]]; then
       log "✓ Sonnet declares full project complete"
       return 0
     fi
