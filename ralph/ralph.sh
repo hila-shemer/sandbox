@@ -18,6 +18,7 @@ set -euo pipefail
 # Usage:
 #   ./ralph.sh <implementation_plan.md>
 #   ./ralph.sh <implementation_plan.md> --sonnet-only   # flat loop, no reviewer
+#   ./ralph.sh <implementation_plan.md> --resume        # resume from last checkpoint
 #
 # Environment variables:
 #   RALPH_DIR          — directory containing prompt files (default: script dir)
@@ -55,9 +56,23 @@ set -euo pipefail
 #                        (default: 900 = 15 min).
 # ──────────────────────────────────────────────────────────────────────
 
-PLAN="${1:?Usage: $0 <implementation_plan.md> [--sonnet-only]}"
+PLAN="${1:?Usage: $0 <implementation_plan.md> [--sonnet-only] [--resume]}"
+shift
 SONNET_ONLY=false
-[[ "${2:-}" == "--sonnet-only" ]] && SONNET_ONLY=true
+RESUME=false
+for arg in "$@"; do
+  case "$arg" in
+    --sonnet-only) SONNET_ONLY=true ;;
+    --resume)      RESUME=true ;;
+    *) echo "Unknown argument: $arg" >&2
+       echo "Usage: $0 <implementation_plan.md> [--sonnet-only] [--resume]" >&2
+       exit 2 ;;
+  esac
+done
+if $RESUME && $SONNET_ONLY; then
+  echo "--resume is only supported in hierarchical mode" >&2
+  exit 2
+fi
 
 # Resolve prompt directory (where the .md prompt files live)
 RALPH_DIR="${RALPH_DIR:-$(cd "$(dirname "$0")" && pwd)}"
