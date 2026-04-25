@@ -397,6 +397,25 @@ record_outer_review_sha() {
   git rev-parse HEAD > .ralph/last_outer_review_sha 2>/dev/null || true
 }
 
+# Phase marker. Written before each phase begins so a crash mid-phase
+# leaves the marker pointing at the in-flight phase, which is correctly
+# the phase to re-enter on --resume.
+#
+# Allowed values (keep in sync with decide_resume_phase and README):
+#   planner-pending   — about to run, or running, the planner call
+#   executor-pending  — planner finished, executor not yet started/done
+#   between-cycles    — executor returned, about to run outer review or
+#                       the next planner cycle
+#   idle              — clean termination (COMPLETE/DONE/BLOCKED/MAX_OUTER)
+set_phase() {
+  mkdir -p .ralph
+  printf '%s\n' "$1" > .ralph/phase
+}
+
+clear_phase() {
+  set_phase idle
+}
+
 # Mode B: called between planner cycles, every OUTER_REVIEW_INTERVAL cycles.
 # Scope is the span of planner cycles since the last outer review, not a
 # single task. This is the main line of defense against a cheaper Sonnet
