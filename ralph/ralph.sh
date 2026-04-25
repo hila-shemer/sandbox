@@ -670,47 +670,58 @@ run_flat_loop() {
 # ── Main: hierarchical loop with planner + periodic reviewer ─────────
 
 run_hierarchical_loop() {
+  local resume_action="${1:-fresh}"
+  local skip_planner_first=false
+  [[ "$resume_action" == "executor" ]] && skip_planner_first=true
+
   local outer=0
 
   while (( outer < MAX_OUTER )); do
     outer=$((outer + 1))
-    log "=== Planner cycle $outer ==="
-    run_log_header "Planner cycle $outer"
 
-    set_phase planner-pending
+    if [[ "$skip_planner_first" == true ]] && (( outer == 1 )); then
+      log "=== Resume: skipping planner, executing existing CURRENT_TASK.md ==="
+      run_log_header "Resume (executor re-entry)"
+      skip_planner_first=false
+    else
+      log "=== Planner cycle $outer ==="
+      run_log_header "Planner cycle $outer"
 
-    # Build planner context
-    {
-      cat "$PLANNER_PROMPT"
-      echo ""
-      echo "## Full Implementation Plan"
-      echo ""
-      cat "$PLAN"
-      echo ""
-      echo "---"
-      memory_context
-    } | call_claude -p $CLAUDE_FLAGS --model "$PLANNER_MODEL"
+      set_phase planner-pending
 
-    check_memory_files_location
+      # Build planner context
+      {
+        cat "$PLANNER_PROMPT"
+        echo ""
+        echo "## Full Implementation Plan"
+        echo ""
+        cat "$PLAN"
+        echo ""
+        echo "---"
+        memory_context
+      } | call_claude -p $CLAUDE_FLAGS --model "$PLANNER_MODEL"
 
-    # Record HEAD right after the planner call so the next planner cycle's
-    # git_log_summary shows only the work the executor/reviewer did between
-    # planner invocations. Reviewer never touches this marker.
-    record_planner_sha
+      check_memory_files_location
 
-    # Check what the planner wrote (normalized: tolerates "## COMPLETE",
-    # whitespace, lowercase, BOMs, etc.)
-    local task_status
-    task_status=$(status_line CURRENT_TASK.md)
+      # Record HEAD right after the planner call so the next planner cycle's
+      # git_log_summary shows only the work the executor/reviewer did between
+      # planner invocations. Reviewer never touches this marker.
+      record_planner_sha
 
-    if [[ "$task_status" == COMPLETE* ]]; then
-      log "✓ Planner declares project complete after $outer planning cycle(s)"
-      clear_phase
-      return 0
-    elif [[ "$task_status" == BLOCKED* ]]; then
-      log "✗ Planner blocked: $task_status"
-      clear_phase
-      return 1
+      # Check what the planner wrote (normalized: tolerates "## COMPLETE",
+      # whitespace, lowercase, BOMs, etc.)
+      local task_status
+      task_status=$(status_line CURRENT_TASK.md)
+
+      if [[ "$task_status" == COMPLETE* ]]; then
+        log "✓ Planner declares project complete after $outer planning cycle(s)"
+        clear_phase
+        return 0
+      elif [[ "$task_status" == BLOCKED* ]]; then
+        log "✗ Planner blocked: $task_status"
+        clear_phase
+        return 1
+      fi
     fi
 
     set_phase executor-pending
@@ -765,13 +776,18 @@ main() {
   check_prompt_files
   ensure_git
 
-  log "═══ Ralph started: plan=$PLAN sonnet_only=$SONNET_ONLY ═══"
+  local resume_action=fresh
+  if [[ "$RESUME" == true ]]; then
+    resume_action=$(decide_resume_phase)
+  fi
+
+  log "═══ Ralph started: plan=$PLAN sonnet_only=$SONNET_ONLY resume_action=$resume_action ═══"
   log "Log file: $LOG (tail -f to watch)"
 
   if [[ "$SONNET_ONLY" == true ]]; then
     run_flat_loop
   else
-    run_hierarchical_loop
+    run_hierarchical_loop "$resume_action"
   fi
 }
 
