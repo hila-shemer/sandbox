@@ -7,7 +7,7 @@
 set -e
 
 usage() {
-    echo "usage: $0 {run|attach|stop} {loop|android}" >&2
+    echo "usage: $0 {run|attach|stop|clear} {loop|android}" >&2
     exit 1
 }
 
@@ -21,6 +21,7 @@ esac
 
 export SANDBOX_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export PROJECT_DIR="${PROJECT_DIR:-$(pwd)}"
+export PROJECT_NAME="${PROJECT_NAME:-${PROJECT_DIR##*/}}"
 export HOST_UID=$(id -u)
 export HOST_GID=$(id -g)
 
@@ -43,6 +44,12 @@ case "$cmd" in
         ;;
     stop)
         exec docker compose -f "$compose" down
+        ;;
+    clear)
+        volume="claude-app-${PROJECT_NAME}"
+        echo "Removing /app volume: $volume"
+        docker volume rm "$volume" && echo "Cleared — volume will be re-seeded from image on next run." \
+            || echo "Volume not found (already clear)."
         ;;
     *)
         usage

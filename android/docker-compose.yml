@@ -40,3 +40,5 @@ volumes:
     external: true
     name: claude-android-home
   cf-images:
+  claude-app:
+    name: "claude-app-${PROJECT_NAME}"

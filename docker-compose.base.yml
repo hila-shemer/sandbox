@@ -12,6 +12,7 @@ services:
         HOST_UID: "${HOST_UID:-1000}"
         HOST_GID: "${HOST_GID:-1000}"
     volumes:
+      - claude-app:/app
       - ${SANDBOX_DIR}/entrypoint.sh:/entrypoint.sh:ro,z
       - ${SANDBOX_DIR}/save-patch:/usr/local/bin/save-patch:ro,z
       - ${SANDBOX_DIR}/ralph:/opt/ralph:ro,z

@@ -89,7 +89,10 @@ fi
 
 # Initialize a fresh git repo from the copied source so the container
 # has a real git history to commit against, isolated from the host repo.
+# On first use (or after `sandbox.sh clear`), the /app volume is empty —
+# seed it from the image copy before initialising git.
 if [ ! -d /app/.git ]; then
+    cp -a /app-seed/. /app/
     git -C /app init -q -b main
     git -C /app config user.email "container@sandbox"
     git -C /app config user.name "Sandbox Container"

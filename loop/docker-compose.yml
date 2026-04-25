@@ -12,3 +12,5 @@ volumes:
   claude-loop-home:
     external: true
     name: claude-loop-home
+  claude-app:
+    name: "claude-app-${PROJECT_NAME}"

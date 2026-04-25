@@ -34,9 +34,9 @@ RUN if getent passwd ${HOST_UID} > /dev/null; then \
     else \
         groupadd -g ${HOST_GID} dev; \
     fi && \
-    mkdir -p /app && chown dev:dev /app
+    mkdir -p /app /app-seed && chown dev:dev /app /app-seed
 
-COPY --from=source --chown=dev:dev /out /app
+COPY --from=source --chown=dev:dev /out /app-seed
 
 USER dev
 WORKDIR /app
