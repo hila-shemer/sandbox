@@ -9,5 +9,5 @@ docker build -t ghcr.io/hila-shemer/claude-android-base:latest -f base/Dockerfil
 docker push ghcr.io/hila-shemer/claude-android-base:latest
 
 # One-time only
-docker volume create claude-loop-home
-docker volume create claude-android-home
+#docker volume create claude-loop-home
+#docker volume create claude-android-home
