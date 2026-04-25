@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y \
     less file findutils \
     nodejs npm \
     vim tmux htop procps jq tree fzf openssh-client iproute2 \
+    xvfb fluxbox scrot imagemagick x11-utils xdotool \
     && rm -rf /var/lib/apt/lists/*
 
 RUN npm install -g @anthropic-ai/claude-code

@@ -15,6 +15,7 @@ services:
       - claude-app:/app
       - ${SANDBOX_DIR}/entrypoint.sh:/entrypoint.sh:ro,z
       - ${SANDBOX_DIR}/save-patch:/usr/local/bin/save-patch:ro,z
+      - ${SANDBOX_DIR}/screenshot:/usr/local/bin/screenshot:ro,z
       - ${SANDBOX_DIR}/ralph:/opt/ralph:ro,z
       - ${PROJECT_DIR}/patches:/output:z
       - ${PROJECT_DIR}/.notes:/home/dev/notes:z

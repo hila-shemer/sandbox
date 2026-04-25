@@ -146,6 +146,24 @@ adb devices                     # cuttlefish:6520
   files (plan.md, design notes, etc.). Bidirectional; lives outside `/app` so
   the container's git never sees it.
 
+## GUI testing
+
+Both variants start `Xvfb :99` (1280×800×24) plus a minimal `fluxbox` window
+manager at container start, with `DISPLAY=:99` exported into the shell. GUI
+apps launched inside the container render headlessly to that virtual display.
+To inspect the rendering:
+
+```
+screenshot [name]              # → /tmp/screen-<name>.png; prints the path
+```
+
+Claude inside the container can then `Read` the PNG directly — being
+multimodal, the screenshot becomes an image input and closes the loop without
+human eyes. Copy to `/home/dev/notes/` if you want the host to see it too;
+`/tmp` is container-local. `xdotool` is also installed for synthetic
+keyboard/mouse input, and `imagemagick` for image diffing/conversion. Idle
+cost is roughly 25MB RAM (Xvfb + fluxbox).
+
 ## Autonomous loops (ralph)
 
 Both variants include the `ralph` harness at `/opt/ralph/` (bind-mounted from

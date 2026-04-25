@@ -71,6 +71,11 @@ You are running inside a Docker sandbox. Conventions specific to this environmen
   appears in patches.
 - **`baseline`** is a git tag on the commit made when the container started.
   Your delta from it = what you have changed. `git diff baseline` to inspect.
+- **GUI apps render to `Xvfb :99`** (started by the entrypoint along with a
+  minimal `fluxbox` window manager). `DISPLAY=:99` is already in your env.
+  Capture the display with `screenshot [name]` — it prints the PNG path;
+  Read the file to see what the app looks like (you're multimodal). `xdotool`
+  is available for synthetic input; `imagemagick` for diffing/conversion.
 EOF
 
 # Android-variant extras: gated on $ADB_TARGET being set, which only the
@@ -122,6 +127,28 @@ if ! grep -q '# sandbox-ralph' /home/dev/.bashrc 2>/dev/null; then
 export NPM_CONFIG_PREFIX=/home/dev/.npm-global
 export PATH="/home/dev/.npm-global/bin:/opt/ralph:$PATH"
 export CLAUDE_FLAGS="--dangerously-skip-permissions"
+EOF
+fi
+
+# Start Xvfb + fluxbox so GUI apps inside the container can render headlessly,
+# and so `screenshot` can capture the display for Claude to inspect. Xvfb is
+# ~10MB RAM, fluxbox ~15MB — cheap enough to leave running unconditionally.
+# DISPLAY is exported here for the exec'd command and persisted in .bashrc
+# (separate sentinel) so attach shells pick it up too.
+if ! pgrep -f "Xvfb :99" >/dev/null 2>&1; then
+    Xvfb :99 -screen 0 1280x800x24 -nolisten tcp >/tmp/xvfb.log 2>&1 &
+    for _ in $(seq 1 20); do
+        [ -S /tmp/.X11-unix/X99 ] && break
+        sleep 0.1
+    done
+    fluxbox >/tmp/fluxbox.log 2>&1 &
+fi
+export DISPLAY=:99
+if ! grep -q '# sandbox-display' /home/dev/.bashrc 2>/dev/null; then
+    cat >> /home/dev/.bashrc <<'EOF'
+
+# sandbox-display
+export DISPLAY=:99
 EOF
 fi
 
