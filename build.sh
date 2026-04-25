@@ -2,11 +2,23 @@
 
 set -e
 
-docker build -t ghcr.io/hila-shemer/claude-loop-base:latest -f base/Dockerfile.claude-loop-base base/
-docker push ghcr.io/hila-shemer/claude-loop-base:latest
+REGISTRY=${REGISTRY:-ghcr.io/hila-shemer}
+PUSH=0
 
-docker build -t ghcr.io/hila-shemer/claude-android-base:latest -f base/Dockerfile.claude-android-base base/
-docker push ghcr.io/hila-shemer/claude-android-base:latest
+for arg in "$@"; do
+  case $arg in
+    --push) PUSH=1 ;;
+    *) echo "Unknown argument: $arg"; exit 1 ;;
+  esac
+done
+
+docker build -t "$REGISTRY/claude-loop-base:latest" -f base/Dockerfile.claude-loop-base base/
+docker build --build-arg REGISTRY="$REGISTRY" -t "$REGISTRY/claude-android-base:latest" -f base/Dockerfile.claude-android-base base/
+
+if [[ $PUSH -eq 1 ]]; then
+  docker push "$REGISTRY/claude-loop-base:latest"
+  docker push "$REGISTRY/claude-android-base:latest"
+fi
 
 # One-time only
 #docker volume create claude-loop-home

@@ -5,12 +5,13 @@
 
 # Must be declared before the first FROM so it is in global scope and visible
 # to both FROM lines (Docker scoping rule for ARGs used in FROM).
-ARG BASE_IMAGE=ghcr.io/hila-shemer/claude-loop-base:latest
+ARG REGISTRY=ghcr.io/hila-shemer
+ARG BASE_IMAGE=${REGISTRY}/claude-loop-base:latest
 
 # --- Stage 1: extract git-tracked files from build context ---
 # Uses `git ls-files` so the copied tree matches the repo's tracked files
 # (including uncommitted modifications), without hardcoded file lists.
-FROM ghcr.io/hila-shemer/claude-loop-base:latest AS source
+FROM ${REGISTRY}/claude-loop-base:latest AS source
 WORKDIR /src
 COPY . /src
 RUN git config --global --add safe.directory /src && \

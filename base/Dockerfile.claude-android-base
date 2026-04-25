@@ -1,4 +1,5 @@
-FROM ghcr.io/hila-shemer/claude-loop-base:latest
+ARG REGISTRY=ghcr.io/hila-shemer
+FROM ${REGISTRY}/claude-loop-base:latest
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV ANDROID_HOME=/opt/android-sdk

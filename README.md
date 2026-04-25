@@ -49,16 +49,24 @@ The two base images are **not** part of `docker compose build` — they are buil
 manually and pushed to a registry the per-project Dockerfiles pull from.
 
 ```
-docker build -t ghcr.io/hila-shemer/claude-loop-base:latest \
-    -f base/Dockerfile.claude-loop-base base/
-docker push ghcr.io/hila-shemer/claude-loop-base:latest
-
-docker build -t ghcr.io/hila-shemer/claude-android-base:latest \
-    -f base/Dockerfile.claude-android-base base/
-docker push ghcr.io/hila-shemer/claude-android-base:latest
+./build.sh           # builds both images locally (no push)
+./build.sh --push    # builds and pushes to the registry
 ```
 
-Rebuild when the toolchain needs to change; otherwise reuse the cached image.
+By default `build.sh` (and all Dockerfiles/compose files) use
+`ghcr.io/hila-shemer` as the registry. The published images are public, so
+clones work out of the box without credentials. To use your own registry, set
+`REGISTRY` before running:
+
+```
+REGISTRY=ghcr.io/yourname ./build.sh --push
+```
+
+`sandbox.sh` picks up the same `REGISTRY` env var when building the
+per-project image, so both layers point at your registry consistently.
+
+Rebuild the base images when the toolchain needs to change; otherwise reuse
+the cached image.
 
 ## Prerequisites
 
