@@ -17,6 +17,9 @@ cat plan_prompt.md | claude --model opus > implementation_plan.md
 
 # Or for simpler projects, skip the reviewer and run Sonnet solo:
 ./ralph.sh implementation_plan.md --sonnet-only
+
+# 3. Resume an interrupted hierarchical run:
+./ralph.sh implementation_plan.md --resume
 ```
 
 ## Architecture
@@ -146,6 +149,63 @@ complex or multi-day projects.
 
 Sonnet reads the full plan directly and loops until DONE or BLOCKED. Cheaper,
 simpler, fine for well-scoped projects.
+
+## Resuming an Interrupted Run
+
+If a hierarchical run is killed mid-phase, re-run with `--resume`:
+
+    ./ralph.sh implementation_plan.md --resume
+
+`--resume` is not supported with `--sonnet-only`.
+
+### How it works
+
+On every run (resume or not) ralph writes a phase marker to `.ralph/phase`
+immediately before each phase begins:
+
+| Value              | Meaning                                                   |
+|--------------------|-----------------------------------------------------------|
+| `planner-pending`  | Planner call in flight (or about to start)                |
+| `executor-pending` | Planner finished; executor not yet run or still running   |
+| `between-cycles`   | Executor returned; outer review or next planner up next   |
+| `idle`             | Clean termination (COMPLETE / BLOCKED / max cycles hit)   |
+
+On `--resume`, ralph reads the marker, cross-checks against `CURRENT_TASK.md`
+and `STATUS.md`, and re-enters at the right phase:
+
+- `planner-pending` → re-run the planner
+- `executor-pending` + non-terminal `CURRENT_TASK.md` → skip planner, re-run executor
+- `between-cycles` + `STATUS.md` present → start next planner cycle
+- `idle` → start a fresh planner cycle
+- Marker missing or inconsistent → ask Opus (via `resume.md`) to classify
+
+### Safety checks
+
+1. **Clean working tree.** `git status --porcelain --untracked-files=no` must be
+   empty. Untracked files are tolerated; modified tracked files are not.
+   Commit or stash before re-running.
+
+2. **Terminal task short-circuit.** If `CURRENT_TASK.md`'s first line is
+   `COMPLETE` or `BLOCKED`, resume exits immediately (0 or 1 respectively)
+   without making any LLM call. A BLOCKED exit means the original run ended
+   stuck — edit or delete `CURRENT_TASK.md` to clear the block before re-running.
+
+3. **Fresh-state shortcut.** If no `.ralph/phase` and no memory files exist,
+   resume falls through to a normal fresh start (no LLM classifier invoked).
+
+### Smoke-test recipe
+
+    # 1. Start a run and kill it after the planner writes CURRENT_TASK.md:
+    ./ralph.sh plan.md &
+    PID=$!
+    # Wait until .ralph/phase contains executor-pending, then:
+    kill -INT $PID
+    cat .ralph/phase    # → executor-pending
+
+    # 2. Resume — the executor runs on the existing CURRENT_TASK.md:
+    ./ralph.sh plan.md --resume
+    # Log will show: "Resume: skipping planner, executing existing CURRENT_TASK.md"
+    # (no "Planner cycle N" header on the first iteration)
 
 ## Configuration
 
