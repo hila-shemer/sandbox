@@ -106,6 +106,7 @@ SONNET_SUFFIX="$RALPH_DIR/sonnet_suffix.md"
 PLANNER_PROMPT="$RALPH_DIR/planner.md"
 REVIEWER_PROMPT="$RALPH_DIR/reviewer.md"
 RESUME_PROMPT="$RALPH_DIR/resume.md"
+_RESUME_PHASE=""  # set by decide_resume_phase
 
 # ── Helpers ──────────────────────────────────────────────────────────
 
@@ -465,7 +466,7 @@ classify_resume() {
   esac
 }
 
-# Returns on stdout: fresh | planner | executor
+# Sets _RESUME_PHASE to: fresh | planner | executor
 # May exit 0 (project already complete) or exit 1 (blocked/inconsistent/dirty).
 decide_resume_phase() {
   # 1. Pre-resume git check: working tree must be clean of tracked changes.
@@ -500,8 +501,7 @@ decide_resume_phase() {
         && ! -f DECISIONS.md \
         && ! -f PROBLEMS.md ]]; then
     log "--resume: no resume state found, starting fresh"
-    echo fresh
-    return
+    _RESUME_PHASE=fresh; return
   fi
 
   # 4. Trust the marker when present and consistent.
@@ -511,25 +511,25 @@ decide_resume_phase() {
     case "$phase" in
       planner-pending)
         log "--resume: phase=planner-pending → re-running planner"
-        echo planner; return ;;
+        _RESUME_PHASE=planner; return ;;
       executor-pending)
         if [[ -f CURRENT_TASK.md ]]; then
           local s; s=$(status_line CURRENT_TASK.md)
           if [[ "$s" != COMPLETE* && "$s" != BLOCKED* ]]; then
             log "--resume: phase=executor-pending → re-entering executor"
-            echo executor; return
+            _RESUME_PHASE=executor; return
           fi
         fi
         log "--resume: phase=executor-pending but CURRENT_TASK.md inconsistent — falling back to classifier" ;;
       between-cycles)
         if [[ -f STATUS.md ]]; then
           log "--resume: phase=between-cycles → starting next planner cycle"
-          echo planner; return
+          _RESUME_PHASE=planner; return
         fi
         log "--resume: phase=between-cycles but STATUS.md missing — falling back to classifier" ;;
       idle)
         log "--resume: phase=idle (clean prior termination) → starting fresh planner cycle"
-        echo planner; return ;;
+        _RESUME_PHASE=planner; return ;;
       *)
         log "--resume: unrecognized phase=$phase — falling back to classifier" ;;
     esac
@@ -538,7 +538,7 @@ decide_resume_phase() {
   # 5. Fallback: ask Opus.
   classify_resume
   case "$RESUME_VERDICT" in
-    planner|executor) echo "$RESUME_VERDICT"; return ;;
+    planner|executor) _RESUME_PHASE="$RESUME_VERDICT"; return ;;
     abort)
       log "✗ --resume aborted by classifier: $RESUME_REASON"
       exit 1 ;;
@@ -778,7 +778,8 @@ main() {
 
   local resume_action=fresh
   if [[ "$RESUME" == true ]]; then
-    resume_action=$(decide_resume_phase)
+    decide_resume_phase
+    resume_action="$_RESUME_PHASE"
   fi
 
   log "═══ Ralph started: plan=$PLAN sonnet_only=$SONNET_ONLY resume_action=$resume_action ═══"

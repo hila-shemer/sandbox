@@ -107,9 +107,12 @@ setup_test_dir() {
 run_ralph_resume() {
   # Run ralph with --resume from the given dir; capture combined output.
   # Passes RALPH_DIR and MAX_OUTER/MAX_INNER to keep execution bounded.
+  # Uses a real (empty) plan file since /dev/null is not a regular file.
   local dir="$1"
   shift
-  (cd "$dir" && PATH="$STUBBIN:$PATH" RALPH_DIR=/app/ralph MAX_OUTER=1 MAX_INNER=1 timeout 5s /app/ralph/ralph.sh /dev/null --resume "$@" 2>&1)
+  local plan="$dir/plan.md"
+  [[ -f "$plan" ]] || touch "$plan"
+  (cd "$dir" && PATH="$STUBBIN:$PATH" RALPH_DIR=/app/ralph MAX_OUTER=1 MAX_INNER=1 timeout 5s /app/ralph/ralph.sh "$plan" --resume "$@" 2>&1)
 }
 
 # Test 8: empty git repo, no files → "starting fresh"
