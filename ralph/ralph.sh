@@ -420,6 +420,134 @@ clear_phase() {
   set_phase idle
 }
 
+# Sets RESUME_VERDICT (planner|executor|abort|unparseable) and
+# RESUME_REASON (for abort/unparseable).
+classify_resume() {
+  log "  >> Opus resume classifier"
+  run_log_header "Opus resume classifier"
+
+  local out
+  out=$(mktemp)
+
+  {
+    cat "$RESUME_PROMPT"
+    echo ""
+    echo "---"
+    memory_context
+  } | call_claude -p $CLAUDE_FLAGS --model "$OPUS_MODEL" | tee "$out"
+
+  local verdict_line
+  verdict_line=$(grep -m1 -E '^RESUME:[[:space:]]' "$out" || true)
+  rm -f "$out"
+
+  if [[ -z "$verdict_line" ]]; then
+    RESUME_VERDICT=unparseable
+    RESUME_REASON="no RESUME: line found in classifier output"
+    return
+  fi
+
+  local rest tok
+  rest="${verdict_line#RESUME:}"
+  rest="${rest#"${rest%%[![:space:]]*}"}"   # ltrim
+  tok="${rest%%[[:space:]]*}"
+  case "$tok" in
+    planner|executor)
+      RESUME_VERDICT="$tok"
+      RESUME_REASON="" ;;
+    abort)
+      RESUME_VERDICT=abort
+      RESUME_REASON="${rest#abort}"
+      RESUME_REASON="${RESUME_REASON#"${RESUME_REASON%%[![:space:]]*}"}"
+      [[ -z "$RESUME_REASON" ]] && RESUME_REASON="(no reason given)" ;;
+    *)
+      RESUME_VERDICT=unparseable
+      RESUME_REASON="unrecognized verdict token: $tok" ;;
+  esac
+}
+
+# Returns on stdout: fresh | planner | executor
+# May exit 0 (project already complete) or exit 1 (blocked/inconsistent/dirty).
+decide_resume_phase() {
+  # 1. Pre-resume git check: working tree must be clean of tracked changes.
+  local dirty
+  dirty=$(git status --porcelain --untracked-files=no)
+  if [[ -n "$dirty" ]]; then
+    log "✗ --resume aborted: working tree has uncommitted changes:"
+    while IFS= read -r line; do log "    $line"; done <<< "$dirty"
+    log "  Commit or stash these changes before re-running with --resume."
+    exit 1
+  fi
+
+  # 2. Terminal task short-circuit.
+  if [[ -f CURRENT_TASK.md ]]; then
+    local task_status
+    task_status=$(status_line CURRENT_TASK.md)
+    if [[ "$task_status" == COMPLETE* ]]; then
+      log "✓ --resume: CURRENT_TASK.md is COMPLETE — project already complete"
+      clear_phase
+      exit 0
+    elif [[ "$task_status" == BLOCKED* ]]; then
+      log "✗ --resume: CURRENT_TASK.md is BLOCKED — resolve the block then re-run"
+      clear_phase
+      exit 1
+    fi
+  fi
+
+  # 3. Fresh-state shortcut: no marker AND no memory files → start fresh.
+  if [[ ! -f .ralph/phase \
+        && ! -f CURRENT_TASK.md \
+        && ! -f STATUS.md \
+        && ! -f DECISIONS.md \
+        && ! -f PROBLEMS.md ]]; then
+    log "--resume: no resume state found, starting fresh"
+    echo fresh
+    return
+  fi
+
+  # 4. Trust the marker when present and consistent.
+  if [[ -f .ralph/phase ]]; then
+    local phase
+    phase=$(<.ralph/phase)
+    case "$phase" in
+      planner-pending)
+        log "--resume: phase=planner-pending → re-running planner"
+        echo planner; return ;;
+      executor-pending)
+        if [[ -f CURRENT_TASK.md ]]; then
+          local s; s=$(status_line CURRENT_TASK.md)
+          if [[ "$s" != COMPLETE* && "$s" != BLOCKED* ]]; then
+            log "--resume: phase=executor-pending → re-entering executor"
+            echo executor; return
+          fi
+        fi
+        log "--resume: phase=executor-pending but CURRENT_TASK.md inconsistent — falling back to classifier" ;;
+      between-cycles)
+        if [[ -f STATUS.md ]]; then
+          log "--resume: phase=between-cycles → starting next planner cycle"
+          echo planner; return
+        fi
+        log "--resume: phase=between-cycles but STATUS.md missing — falling back to classifier" ;;
+      idle)
+        log "--resume: phase=idle (clean prior termination) → starting fresh planner cycle"
+        echo planner; return ;;
+      *)
+        log "--resume: unrecognized phase=$phase — falling back to classifier" ;;
+    esac
+  fi
+
+  # 5. Fallback: ask Opus.
+  classify_resume
+  case "$RESUME_VERDICT" in
+    planner|executor) echo "$RESUME_VERDICT"; return ;;
+    abort)
+      log "✗ --resume aborted by classifier: $RESUME_REASON"
+      exit 1 ;;
+    *)
+      log "✗ --resume aborted: classifier produced unparseable output ($RESUME_REASON)"
+      exit 1 ;;
+  esac
+}
+
 # Mode B: called between planner cycles, every OUTER_REVIEW_INTERVAL cycles.
 # Scope is the span of planner cycles since the last outer review, not a
 # single task. This is the main line of defense against a cheaper Sonnet
