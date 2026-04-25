@@ -3,6 +3,10 @@
 # e.g. android passes claude-android-base. Stage 1 always pulls loop-base,
 # which is minimal and just needs `git` for the ls-files extraction.
 
+# Must be declared before the first FROM so it is in global scope and visible
+# to both FROM lines (Docker scoping rule for ARGs used in FROM).
+ARG BASE_IMAGE=ghcr.io/hila-shemer/claude-loop-base:latest
+
 # --- Stage 1: extract git-tracked files from build context ---
 # Uses `git ls-files` so the copied tree matches the repo's tracked files
 # (including uncommitted modifications), without hardcoded file lists.
@@ -15,7 +19,6 @@ RUN git config --global --add safe.directory /src && \
     git ls-files | xargs cp --parents -t /out
 
 # --- Stage 2: final image ---
-ARG BASE_IMAGE=ghcr.io/hila-shemer/claude-loop-base:latest
 FROM ${BASE_IMAGE}
 
 # Create non-root user matching host UID (keeps volume-mounted file ownership sane)
