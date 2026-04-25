@@ -142,6 +142,7 @@ if ! pgrep -f "Xvfb :99" >/dev/null 2>&1; then
         sleep 0.1
     done
     fluxbox >/tmp/fluxbox.log 2>&1 &
+    disown -a
 fi
 export DISPLAY=:99
 if ! grep -q '# sandbox-display' /home/dev/.bashrc 2>/dev/null; then
