@@ -12,3 +12,4 @@ ralph-*.log
 
 # Ralph's per-run state (e.g. .ralph/last_planner_sha marker).
 .ralph/
+.notes/
