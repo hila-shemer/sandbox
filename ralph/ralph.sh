@@ -105,6 +105,7 @@ SONNET_PREFIX="$RALPH_DIR/sonnet_prefix.md"
 SONNET_SUFFIX="$RALPH_DIR/sonnet_suffix.md"
 PLANNER_PROMPT="$RALPH_DIR/planner.md"
 REVIEWER_PROMPT="$RALPH_DIR/reviewer.md"
+RESUME_PROMPT="$RALPH_DIR/resume.md"
 
 # ── Helpers ──────────────────────────────────────────────────────────
 
@@ -291,6 +292,9 @@ check_prompt_files() {
     for f in "$SONNET_PREFIX" "$SONNET_SUFFIX" "$PLANNER_PROMPT" "$REVIEWER_PROMPT"; do
       [[ -f "$f" ]] || missing+=("$f")
     done
+    if [[ "$RESUME" == true ]]; then
+      [[ -f "$RESUME_PROMPT" ]] || missing+=("$RESUME_PROMPT")
+    fi
   fi
   if [[ ${#missing[@]} -gt 0 ]]; then
     echo "Missing prompt files:"
