@@ -545,6 +545,8 @@ run_hierarchical_loop() {
     log "=== Planner cycle $outer ==="
     run_log_header "Planner cycle $outer"
 
+    set_phase planner-pending
+
     # Build planner context
     {
       cat "$PLANNER_PROMPT"
@@ -571,11 +573,15 @@ run_hierarchical_loop() {
 
     if [[ "$task_status" == COMPLETE* ]]; then
       log "✓ Planner declares project complete after $outer planning cycle(s)"
+      clear_phase
       return 0
     elif [[ "$task_status" == BLOCKED* ]]; then
       log "✗ Planner blocked: $task_status"
+      clear_phase
       return 1
     fi
+
+    set_phase executor-pending
 
     # Run Sonnet on the current task (with periodic mid-task reviews).
     # Non-zero return (BLOCKED after review, or MAX_INNER exhausted) is
@@ -583,9 +589,12 @@ run_hierarchical_loop() {
     # `set -e` would abort the whole run here.
     run_sonnet CURRENT_TASK.md || true
 
+    set_phase between-cycles
+
     # If Sonnet declared the whole project DONE
     if [[ "$(status_line)" == DONE* ]]; then
       log "✓ Sonnet declares full project complete"
+      clear_phase
       return 0
     fi
 
@@ -601,6 +610,7 @@ run_hierarchical_loop() {
   done
 
   log "✗ Hit max planning cycles ($MAX_OUTER)"
+  clear_phase
   return 1
 }
 
