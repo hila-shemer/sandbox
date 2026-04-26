@@ -13,11 +13,9 @@ for arg in "$@"; do
 done
 
 docker build -t "$REGISTRY/claude-loop-base:latest" -f base/Dockerfile.claude-loop-base base/
-docker build --build-arg REGISTRY="$REGISTRY" -t "$REGISTRY/claude-android-base:latest" -f base/Dockerfile.claude-android-base base/
 
 if [[ $PUSH -eq 1 ]]; then
   docker push "$REGISTRY/claude-loop-base:latest"
-  docker push "$REGISTRY/claude-android-base:latest"
 fi
 
 # One-time only

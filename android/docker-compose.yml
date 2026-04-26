@@ -5,8 +5,6 @@ services:
       service: claude-common
     image: claude-android
     build:
-      args:
-        BASE_IMAGE: "${REGISTRY:-ghcr.io/hila-shemer}/claude-android-base:latest"
     volumes:
       - claude-android-home:/home/dev   # persists credentials, AVD, gradle cache across runs
     environment:

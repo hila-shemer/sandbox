@@ -6,8 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 The **canonical Docker sandbox** pattern for running Claude Code in a container against an arbitrary host project. Two variants share one Dockerfile, one entrypoint, and one compose-base file:
 
-- `loop/` — Claude Code + generic dev + C toolchain.
-- `android/` — adds JDK + Android SDK and pairs with a Cuttlefish sidecar for ADB.
+- `loop/` — Claude Code + generic dev + C toolchain + Android SDK (no emulator).
+- `android/` — same image, plus a Cuttlefish sidecar for ADB-connected Android testing.
 
 Every change should keep the variants symmetric: shared logic in the root files, variant-specific bits gated on `$ADB_TARGET` (entrypoint) or in `<variant>/docker-compose.yml`.
 
@@ -19,19 +19,19 @@ Every change should keep the variants symmetric: shared logic in the root files,
 ./sandbox.sh stop   {loop|android}    # docker compose down
 ./sandbox.sh clear  {loop|android}    # remove the per-project /app volume (re-seeds next run)
 
-./build.sh                            # build + push both base images to ghcr.io
+./build.sh                            # build + push the base image to ghcr.io
 ./run_tests.sh                        # ralph.sh argument-parser + resume-flow tests (uses a stub `claude`)
 ```
 
 `sandbox.sh` derives `SANDBOX_DIR` from its own path and `PROJECT_DIR` from `$PWD` (or override). `HOST_UID`/`HOST_GID` default to the invoking user's IDs so bind-mounted files end up host-owned.
 
-The `claude-loop-base` and `claude-android-base` images are **not** built by `docker compose build` — they live on `ghcr.io/hila-shemer/` and are rebuilt manually via `build.sh`. Per-project `docker compose build` only builds the thin Stage-2 image on top.
+The `claude-loop-base` image is **not** built by `docker compose build` — it lives on `ghcr.io/hila-shemer/` and is rebuilt manually via `build.sh`. Per-project `docker compose build` only builds the thin Stage-2 image on top. Both variants use the same base image.
 
 ## Architecture
 
 ### Build flow (one Dockerfile, two variants)
 
-`Dockerfile` is shared; the variant compose file injects `BASE_IMAGE` as a build ARG (defaults to loop-base; android overrides). Stage 1 always uses loop-base — it just needs `git` to run `git ls-files | xargs cp --parents` so the copied tree mirrors what's tracked (plus uncommitted modifications), without any hardcoded file list. Stage 2 swaps to `${BASE_IMAGE}` and copies the extracted tree to `/app-seed`.
+`Dockerfile` is shared; both variants build from `claude-loop-base`. Stage 1 always uses loop-base — it just needs `git` to run `git ls-files | xargs cp --parents` so the copied tree mirrors what's tracked (plus uncommitted modifications), without any hardcoded file list. Stage 2 copies the extracted tree to `/app-seed`.
 
 Build context = `PROJECT_DIR` (the user's project), not this repo. Dockerfile path = `SANDBOX_DIR/Dockerfile`. This is why everything is plumbed via env vars in `docker-compose.base.yml`.
 
