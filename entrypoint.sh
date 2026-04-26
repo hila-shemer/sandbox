@@ -141,6 +141,7 @@ if ! pgrep -f "Xvfb :99" >/dev/null 2>&1; then
         [ -S /tmp/.X11-unix/X99 ] && break
         sleep 0.1
     done
+    export DISPLAY=:99
     fluxbox >/tmp/fluxbox.log 2>&1 &
     disown -a
 fi
