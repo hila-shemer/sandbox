@@ -4,10 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repo is
 
-The **canonical Docker sandbox** pattern for running Claude Code in a container against an arbitrary host project. Two variants share one Dockerfile, one entrypoint, and one compose-base file:
+The **canonical Docker sandbox** pattern for running Claude Code in a container against an arbitrary host project. Three variants share one Dockerfile, one entrypoint, and one compose-base file:
 
 - `loop/` — Claude Code + generic dev + C toolchain + Android SDK (no emulator).
-- `android/` — same image, plus a Cuttlefish sidecar for ADB-connected Android testing.
+- `android/` — same image as loop, plus a Cuttlefish sidecar for ADB-connected Android testing.
+- `llm/` — extends loop-base with PyTorch (CUDA) + HF training stack (transformers, datasets, accelerate, peft, trl, bitsandbytes). Requires NVIDIA GPU on host.
 
 Every change should keep the variants symmetric: shared logic in the root files, variant-specific bits gated on `$ADB_TARGET` (entrypoint) or in `<variant>/docker-compose.yml`.
 
@@ -25,7 +26,7 @@ Every change should keep the variants symmetric: shared logic in the root files,
 
 `sandbox.sh` derives `SANDBOX_DIR` from its own path and `PROJECT_DIR` from `$PWD` (or override). `HOST_UID`/`HOST_GID` default to the invoking user's IDs so bind-mounted files end up host-owned.
 
-The `claude-loop-base` image is **not** built by `docker compose build` — it lives on `ghcr.io/hila-shemer/` and is rebuilt manually via `build.sh`. Per-project `docker compose build` only builds the thin Stage-2 image on top. Both variants use the same base image.
+The `claude-loop-base` image is **not** built by `docker compose build` — it lives on `ghcr.io/hila-shemer/` and is rebuilt manually via `build.sh`. Per-project `docker compose build` only builds the thin Stage-2 image on top. The `loop` and `android` variants use `claude-loop-base`; the `llm` variant uses `claude-llm-base` (which itself extends `claude-loop-base`).
 
 ## Architecture
 

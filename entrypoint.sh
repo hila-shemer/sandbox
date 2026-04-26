@@ -92,6 +92,20 @@ if [ -n "$ADB_TARGET" ]; then
 EOF
 fi
 
+# LLM-variant extras: gated on $LLM_SANDBOX, set only by llm/docker-compose.yml.
+if [ -n "$LLM_SANDBOX" ]; then
+    cat >> /home/dev/.claude/CLAUDE.md <<'EOF'
+- **GPU is available** via NVIDIA runtime. `nvidia-smi` to inspect;
+  `python3 -c "import torch; print(torch.cuda.is_available())"` should print True.
+- **HF model cache** lives in `~/.cache/huggingface` on the persistent home
+  volume — models survive container restarts without re-downloading. Use
+  `huggingface-cli login` or set `HF_TOKEN` in the environment for gated models.
+- **Training stack pre-installed**: `torch` (CUDA), `transformers`, `datasets`,
+  `accelerate`, `peft` (LoRA/QLoRA), `trl` (SFT/fine-tuning), `bitsandbytes`
+  (4-bit quantization), `evaluate`, `tensorboard`, `sentencepiece`, `scipy`.
+EOF
+fi
+
 # Initialize a fresh git repo from the copied source so the container
 # has a real git history to commit against, isolated from the host repo.
 # On first use (or after `sandbox.sh clear`), the /app volume is empty —

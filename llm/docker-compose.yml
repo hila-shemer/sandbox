@@ -1,0 +1,28 @@
+services:
+  claude-llm:
+    extends:
+      file: ../docker-compose.base.yml
+      service: claude-common
+    image: claude-llm
+    build:
+      args:
+        BASE_IMAGE: "${REGISTRY:-ghcr.io/hila-shemer}/claude-llm-base:latest"
+    volumes:
+      - claude-llm-home:/home/dev   # persists credentials, HF model cache, shell state
+    environment:
+      - LLM_SANDBOX=1
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    mem_limit: 32g
+
+volumes:
+  claude-llm-home:
+    external: true
+    name: claude-llm-home
+  claude-app:
+    name: "claude-app-${PROJECT_NAME}"

@@ -1,0 +1,23 @@
+ARG REGISTRY=ghcr.io/hila-shemer
+FROM ${REGISTRY}/claude-loop-base:latest
+
+# torch is installed from the CUDA 13.0 wheel index — PyTorch bundles its own
+# CUDA runtime libraries in the wheel, so no CUDA headers are needed in the
+# image. The NVIDIA runtime on the host provides the driver stub at container
+# start via the GPU device reservation in docker-compose.
+RUN pip install --no-cache-dir --break-system-packages \
+        torch torchvision torchaudio \
+        --index-url https://download.pytorch.org/whl/cu130
+
+RUN pip install --no-cache-dir --break-system-packages \
+        transformers \
+        datasets \
+        accelerate \
+        peft \
+        trl \
+        bitsandbytes \
+        huggingface-hub \
+        evaluate \
+        tensorboard \
+        sentencepiece \
+        scipy

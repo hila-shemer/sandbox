@@ -1,13 +1,13 @@
 #!/bin/bash
-# sandbox.sh {run|attach|stop} {loop|android}
+# sandbox.sh {run|attach|stop|clear} {loop|android|llm}
 #
-# Single dispatcher replacing the per-variant {run,attach,stop}{loop,android}.sh
-# scripts. PROJECT_DIR defaults to the current directory; SANDBOX_DIR is
+# Single dispatcher for all variants. PROJECT_DIR defaults to the current
+# directory; SANDBOX_DIR is
 # auto-derived from this script's location.
 set -e
 
 usage() {
-    echo "usage: $0 {run|attach|stop|clear} {loop|android}" >&2
+    echo "usage: $0 {run|attach|stop|clear} {loop|android|llm}" >&2
     exit 1
 }
 
@@ -15,7 +15,7 @@ cmd="${1:-}"
 variant="${2:-}"
 
 case "$variant" in
-    loop|android) ;;
+    loop|android|llm) ;;
     *) usage ;;
 esac
 

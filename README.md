@@ -1,15 +1,17 @@
 # sandbox
 
 Container-based development environments for running Claude Code on a host
-machine. Two variants:
+machine. Three variants:
 
 - **`loop/`** — lightweight container with Claude Code + generic dev tools + C
   toolchain. Intended for ralph-style autonomous loops on arbitrary projects.
-- **`android/`** — everything in `loop/` plus OpenJDK 21, the Android SDK
-  (platforms-34, build-tools 34.0.0, platform-tools), and a companion
-  Cuttlefish container serving as the target device over ADB.
+- **`android/`** — same image as `loop/`, plus a companion Cuttlefish container
+  serving as the target device over ADB.
+- **`llm/`** — extends `loop/`'s base with PyTorch (CUDA 13.0) and the
+  Hugging Face training stack (transformers, datasets, accelerate, peft, trl,
+  bitsandbytes). GPU passed through from host via NVIDIA container runtime.
 
-Both variants bake the target project into `/app` at build time (via `git
+All variants bake the target project into `/app` at build time (via `git
 ls-files`), let Claude Code edit and commit inside the container against an
 isolated git history, and expose `./patches` at `/output` for extracting
 artifacts back to the host. A `save-patch` helper inside the container exports
@@ -20,21 +22,23 @@ the container's commits since startup as a `git format-patch` series into
 
 ```
 Dockerfile                          Shared; ARG BASE_IMAGE selects the final stage
-                                    (claude-loop-base by default, android overrides)
-entrypoint.sh                       Shared; android-only blocks gated on $ADB_TARGET
-docker-compose.base.yml             Shared service definition extended by both variants
-sandbox.sh                          Dispatcher: ./sandbox.sh {run|attach|stop} {loop|android}
+                                    (claude-loop-base by default, llm overrides to llm-base)
+entrypoint.sh                       Shared; variant-only blocks gated on $ADB_TARGET / $LLM_SANDBOX
+docker-compose.base.yml             Shared service definition extended by all variants
+sandbox.sh                          Dispatcher: ./sandbox.sh {run|attach|stop} {loop|android|llm}
 save-patch                          Helper binary mounted at /usr/local/bin/save-patch
 
 base/
-  Dockerfile.claude-loop-base       Ubuntu 24.04 + generic + C toolchain + Claude Code
-  Dockerfile.claude-android-base    FROM loop-base, adds JDK + Android SDK
+  Dockerfile.claude-loop-base       Ubuntu 24.04 + generic + C toolchain + Claude Code + Android SDK
+  Dockerfile.claude-llm-base        FROM loop-base, adds PyTorch (CUDA) + HF training stack
 loop/
   docker-compose.yml                Extends docker-compose.base.yml; home volume + mem_limit
 android/
-  docker-compose.yml                Extends base, sets BASE_IMAGE + ADB_TARGET, adds
-                                    Cuttlefish service with healthcheck
+  docker-compose.yml                Extends base, sets ADB_TARGET, adds Cuttlefish service
   entrypoint-cuttlefish.sh          Runs inside the Cuttlefish container
+llm/
+  docker-compose.yml                Extends base, sets BASE_IMAGE=llm-base + LLM_SANDBOX,
+                                    GPU device reservation via NVIDIA runtime
 ralph/                              Autonomous three-role (Sonnet planner, Sonnet
                                     executor, periodic Opus reviewer) implementation
                                     loop. Bind-mounted read-only into /opt/ralph in
@@ -45,8 +49,10 @@ ralph/                              Autonomous three-role (Sonnet planner, Sonne
 
 ## Base images
 
-The two base images are **not** part of `docker compose build` — they are built
+The base images are **not** part of `docker compose build` — they are built
 manually and pushed to a registry the per-project Dockerfiles pull from.
+`claude-llm-base` extends `claude-loop-base`, so `build.sh` builds them in
+order.
 
 ```
 ./build.sh           # builds both images locally (no push)
@@ -74,17 +80,19 @@ the cached image.
 - One-time volume creation for each variant you use:
 
   ```
-  docker volume create claude-loop-home
+  docker volume create claude-loop-home    # loop and android
   docker volume create claude-android-home
+  docker volume create claude-llm-home     # llm
   ```
 
-- For the `android/` variant: NVIDIA GPU with the container toolkit configured.
+- For the `llm/` variant: NVIDIA GPU with the container toolkit configured
+  (`nvidia` runtime must appear in `docker info | grep Runtime`).
 - Host `~/.claude` directory (mounted read-only so Claude Code preferences —
   `CLAUDE.md`, `agents`, `settings.json` — carry into the container).
 
 ## Usage
 
-Both variants are driven by two environment variables:
+All variants are driven by two environment variables:
 
 - `PROJECT_DIR` — absolute path to the project you want to work on. Becomes
   both the Docker build context and the owner of `/output` (via
@@ -103,9 +111,9 @@ The `sandbox.sh` dispatcher does the env-var plumbing for you. It derives
 override), and exposes three commands:
 
 ```
-$SANDBOX_DIR/sandbox.sh run    {loop|android}    # build + run --rm
-$SANDBOX_DIR/sandbox.sh attach {loop|android}    # docker exec -it into a live container
-$SANDBOX_DIR/sandbox.sh stop   {loop|android}    # docker compose down
+$SANDBOX_DIR/sandbox.sh run    {loop|android|llm}    # build + run --rm
+$SANDBOX_DIR/sandbox.sh attach {loop|android|llm}    # docker exec -it into a live container
+$SANDBOX_DIR/sandbox.sh stop   {loop|android|llm}    # docker compose down
 ```
 
 ### `loop` — Claude-only container
@@ -138,11 +146,29 @@ adb devices                     # cuttlefish:6520
 ./gradlew installDebug
 ```
 
+### `llm` — Claude + GPU + HF training stack
+
+```
+cd $HOME/proj/my-ml-project
+$HOME/proj/sandbox/sandbox.sh run llm
+```
+
+The GPU is available immediately — `nvidia-smi` and `torch.cuda.is_available()`
+both work. Hugging Face model cache lives at `~/.cache/huggingface` on the
+persistent `claude-llm-home` volume, so models survive container restarts
+without re-downloading. For gated models, run `huggingface-cli login` once (the
+token is stored in the home volume) or set `HF_TOKEN` in the environment before
+`sandbox.sh run`.
+
+The training stack (`peft`, `trl`, `accelerate`, `bitsandbytes`) is pre-installed
+in the base image. Fine-tuning with LoRA/QLoRA and mixed-precision training work
+out of the box.
+
 ## Volumes
 
-- `claude-loop-home` / `claude-android-home` (external) — `/home/dev` inside
-  each container. Persists Claude auth/session state, shell history, gradle
-  caches, etc.
+- `claude-loop-home` / `claude-android-home` / `claude-llm-home` (external) —
+  `/home/dev` inside each container. Persists Claude auth/session state, shell
+  history, caches (gradle for android, `~/.cache/huggingface` for llm), etc.
 - `cf-images` (managed by compose) — caches Cuttlefish's `cvd fetch` output so
   subsequent starts skip the multi-GB download.
 - `$PROJECT_DIR/patches` → `/output` — bind mount for getting files out of the
@@ -156,7 +182,7 @@ adb devices                     # cuttlefish:6520
 
 ## GUI testing
 
-Both variants start `Xvfb :99` (1280×800×24) plus a minimal `fluxbox` window
+All variants start `Xvfb :99` (1280×800×24) plus a minimal `fluxbox` window
 manager at container start, with `DISPLAY=:99` exported into the shell. GUI
 apps launched inside the container render headlessly to that virtual display.
 To inspect the rendering:
@@ -174,7 +200,7 @@ cost is roughly 25MB RAM (Xvfb + fluxbox).
 
 ## Autonomous loops (ralph)
 
-Both variants include the `ralph` harness at `/opt/ralph/` (bind-mounted from
+All variants include the `ralph` harness at `/opt/ralph/` (bind-mounted from
 `sandbox/ralph/`, also on `$PATH`). Three-role architecture: a Sonnet planner
 and Sonnet executor iterate with fresh context each loop, and a stronger Opus
 reviewer is called periodically as an outside eye (both mid-task and
