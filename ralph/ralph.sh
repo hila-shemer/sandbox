@@ -106,6 +106,7 @@ SONNET_SUFFIX="$RALPH_DIR/sonnet_suffix.md"
 PLANNER_PROMPT="$RALPH_DIR/planner.md"
 REVIEWER_PROMPT="$RALPH_DIR/reviewer.md"
 RESUME_PROMPT="$RALPH_DIR/resume.md"
+EXIT_GATE_PROMPT="$RALPH_DIR/exit_gate.md"
 _RESUME_PHASE=""  # set by decide_resume_phase
 
 # ── Helpers ──────────────────────────────────────────────────────────
@@ -290,7 +291,7 @@ check_prompt_files() {
       [[ -f "$f" ]] || missing+=("$f")
     done
   else
-    for f in "$SONNET_PREFIX" "$SONNET_SUFFIX" "$PLANNER_PROMPT" "$REVIEWER_PROMPT"; do
+    for f in "$SONNET_PREFIX" "$SONNET_SUFFIX" "$PLANNER_PROMPT" "$REVIEWER_PROMPT" "$EXIT_GATE_PROMPT"; do
       [[ -f "$f" ]] || missing+=("$f")
     done
     if [[ "$RESUME" == true ]]; then
@@ -585,6 +586,59 @@ run_opus_outer_review() {
   log "  << Opus outer-cycle review complete"
 }
 
+# ── Exit gate (Opus, terminal-status verification) ──────────────────
+#
+# Called whenever the planner or executor claims a terminal status (DONE,
+# COMPLETE, or BLOCKED). Verifies the claim against the actual project state
+# before the loop exits. On rejection, the gate is expected to have left
+# STATUS.md (and CURRENT_TASK.md if needed) in a non-terminal state so the
+# next planner cycle can continue. Returns 0 on CONFIRMED, 1 on REJECTED.
+# An unparseable response (no GATE: line) is treated as CONFIRMED with a
+# warning — the gate model behavior should be reliable; treating silence as
+# REJECTED risks an infinite loop.
+
+run_exit_gate() {
+  local claimed_status="$1"
+  log "  >> Exit gate (claimed: $claimed_status)"
+  run_log_header "Exit gate (claimed: $claimed_status)"
+
+  local out
+  out=$(mktemp)
+
+  {
+    cat "$EXIT_GATE_PROMPT"
+    echo ""
+    echo "## Claimed Terminal Status: $claimed_status"
+    echo ""
+    echo "---"
+    memory_context
+    echo ""
+    echo "## Full Implementation Plan"
+    echo ""
+    cat "$PLAN"
+  } | call_claude -p $CLAUDE_FLAGS --model "$OPUS_MODEL" | tee "$out"
+
+  check_memory_files_location
+  run_tests
+
+  local gate_line
+  gate_line=$(grep -m1 -E '^GATE:[[:space:]]' "$out" || true)
+  rm -f "$out"
+
+  if [[ -z "$gate_line" ]]; then
+    log "  << Exit gate: no GATE: line found — treating as CONFIRMED"
+    return 0
+  fi
+
+  if [[ "$gate_line" == *CONFIRMED* ]]; then
+    log "  << Exit gate: CONFIRMED"
+    return 0
+  else
+    log "  << Exit gate: REJECTED — loop continues"
+    return 1
+  fi
+}
+
 # ── Sonnet execution (inner loop) ───────────────────────────────────
 
 run_sonnet() {
@@ -714,13 +768,23 @@ run_hierarchical_loop() {
       task_status=$(status_line CURRENT_TASK.md)
 
       if [[ "$task_status" == COMPLETE* ]]; then
-        log "✓ Planner declares project complete after $outer planning cycle(s)"
-        clear_phase
-        return 0
+        log "  Planner declares project complete — running exit gate"
+        if run_exit_gate "COMPLETE"; then
+          log "✓ Exit gate confirmed: project complete after $outer planning cycle(s)"
+          clear_phase
+          return 0
+        fi
+        log "  Exit gate rejected COMPLETE — continuing loop"
+        continue
       elif [[ "$task_status" == BLOCKED* ]]; then
-        log "✗ Planner blocked: $task_status"
-        clear_phase
-        return 1
+        log "  Planner blocked: $task_status — running exit gate"
+        if run_exit_gate "BLOCKED"; then
+          log "✗ Exit gate confirmed block"
+          clear_phase
+          return 1
+        fi
+        log "  Exit gate rejected BLOCKED — continuing loop"
+        continue
       fi
     fi
 
@@ -736,9 +800,14 @@ run_hierarchical_loop() {
 
     # If Sonnet declared the whole project DONE
     if [[ "$(status_line)" == DONE* ]]; then
-      log "✓ Sonnet declares full project complete"
-      clear_phase
-      return 0
+      log "  Sonnet declares full project complete — running exit gate"
+      if run_exit_gate "DONE"; then
+        log "✓ Exit gate confirmed: project complete"
+        clear_phase
+        return 0
+      fi
+      log "  Exit gate rejected DONE — continuing loop"
+      continue
     fi
 
     # Periodic outer-cycle review: every OUTER_REVIEW_INTERVAL planner cycles,

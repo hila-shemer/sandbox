@@ -8,17 +8,25 @@ the time.
 ## Quick Start
 
 ```bash
-# 1. Generate a plan (one-time, uses Opus)
-#    Edit plan_prompt.md with your project description, then:
-cat plan_prompt.md | claude --model opus > implementation_plan.md
+# ── Option A: simple task (bug fix, single feature, port) ──────────────
+# Sonnet reads the codebase and generates a focused plan from a one-liner.
+ralph-init-simple.sh "add dark mode toggle to settings screen"
+# → implementation_plan.md
 
-# 2. Run the loop
+# ── Option B: complex project (new app, multi-phase rewrite) ───────────
+# Step 1: use description_prompt.md as a Claude sub-agent to interview you
+#         and produce a detailed project_description.md.
+# Step 2: generate a full implementation plan (uses Opus):
+ralph-init.sh project_description.md
+# → implementation_plan.md
+
+# ── Run the loop ───────────────────────────────────────────────────────
 ./ralph.sh implementation_plan.md
 
-# Or for simpler projects, skip the reviewer and run Sonnet solo:
+# Or skip the reviewer and run Sonnet solo (cheaper, fine for simple tasks):
 ./ralph.sh implementation_plan.md --sonnet-only
 
-# 3. Resume an interrupted hierarchical run:
+# Resume an interrupted hierarchical run:
 ./ralph.sh implementation_plan.md --resume
 ```
 
@@ -57,11 +65,20 @@ cat plan_prompt.md | claude --model opus > implementation_plan.md
 │  │  │  Reviews the last N cycles as a window. Main   │  │  │
 │  │  │  defense against Sonnet-planner drift.         │  │  │
 │  │  └────────────────────────────────────────────────┘  │  │
+│  │                                                      │  │
+│  │  ┌────────────────────────────────────────────────┐  │  │
+│  │  │ ON EXIT: Exit Gate (Opus)                     │  │  │
+│  │  │  Every DONE/COMPLETE/BLOCKED claim before the  │  │  │
+│  │  │  loop exits. Verifies the claim against the    │  │  │
+│  │  │  plan and real code; on rejection rewrites     │  │  │
+│  │  │  STATUS.md to non-terminal so the loop         │  │  │
+│  │  │  continues. Guards against premature exits.    │  │  │
+│  │  └────────────────────────────────────────────────┘  │  │
 │  └──────────────────────────────────────────────────────┘  │
 └────────────────────────────────────────────────────────────┘
 ```
 
-### Three Roles
+### Four Roles
 
 **Planner (Sonnet)** — called between task slices. Sees the full plan, all
 memory files, and the git log. Crucially, it also **reads the actual
@@ -87,6 +104,15 @@ In both modes Opus doesn't write new tasks; it diagnoses problems and leaves
 guidance in the memory files. Can make small targeted fixes (a config typo,
 a missing import) but doesn't do real implementation.
 
+**Exit Gate (Opus)** — called every time the planner or executor claims a
+terminal status (DONE, COMPLETE, or BLOCKED), before the loop actually exits.
+Reads the implementation plan, memory files, and real source code to verify
+the claim. Outputs `GATE: CONFIRMED` or `GATE: REJECTED`. On rejection, it
+rewrites STATUS.md (and the first line of CURRENT_TASK.md if needed) to a
+non-terminal state so the next planner cycle continues. This guards against
+the common failure mode of Sonnet writing `DONE` when it only finished a
+sub-task, or declaring `BLOCKED` on a problem it could have solved.
+
 ### Why a Separate Reviewer?
 
 Sonnet catches obvious blockers but misses subtle drift — working confidently
@@ -101,15 +127,33 @@ rewrites STATUS.md with a path forward, and the inner loop continues.
 ## Files
 
 ```
-ralph.sh            — main orchestrator
-sonnet_prefix.md    — execution prompt prefix (prepended to task spec)
-sonnet_suffix.md    — execution reminders (appended after task spec)
-planner.md          — planner prompt: reviews work, writes next task
-reviewer.md         — reviewer prompt: mid-task + outer-cycle diagnosis
-plan_prompt.md      — template for generating implementation plans
-agents/             — sub-agent definitions shipped with ralph (e.g.
-                      test-runner.md, a Haiku agent the executor uses
-                      to run ./run_tests.sh without bloating its context)
+ralph.sh                — main orchestrator
+ralph-init.sh           — generates implementation_plan.md from a spec file
+                          (uses Opus; suited for complex/multi-phase projects)
+ralph-init-simple.sh    — generates implementation_plan.md from a brief task
+                          description string or file (uses Sonnet; suited for
+                          bug fixes, single features, small ports)
+sonnet_prefix.md        — execution prompt prefix (prepended to task spec)
+sonnet_suffix.md        — execution reminders (appended after task spec)
+planner.md              — planner prompt: reviews work, writes next task
+reviewer.md             — reviewer prompt: mid-task + outer-cycle diagnosis
+exit_gate.md            — exit gate prompt: terminal-status verification before loop exit
+plan_prompt.md          — full plan template used by ralph-init.sh; asks Opus
+                          for phases, dependencies, success criteria, risk flags,
+                          and testing strategy
+simple_plan_prompt.md   — leaner plan template used by ralph-init-simple.sh;
+                          tells Sonnet to read the codebase first, then produce
+                          a proportionate plan (1–3 phases for most tasks)
+description_prompt.md   — Claude sub-agent prompt for the complex flow. Use it
+                          as a sub-agent (via /agents or the Agents panel) to
+                          interview you about your project and produce a
+                          project_description.md for ralph-init.sh. Covers:
+                          constraints, interfaces, functional requirements,
+                          out-of-scope items, starting state, risks, and
+                          definition of done.
+agents/                 — sub-agent definitions shipped with ralph (e.g.
+                          test-runner.md, a Haiku agent the executor uses
+                          to run ./run_tests.sh without bloating its context)
 ```
 
 ## Memory Files (created at runtime in the project directory)
@@ -275,8 +319,9 @@ To watch progress live in another pane:
 tail -f ralph-*.log
 ```
 
-`ralph-init.sh` emits its own `ralph-init-<timestamp>.log` alongside the
-generated plan, with the same streaming contract.
+`ralph-init.sh` and `ralph-init-simple.sh` each emit their own
+`ralph-init-<timestamp>.log` alongside the generated plan, with the same
+streaming contract.
 
 The `ralph-*.log` glob is `.gitignore`'d at the repo root — add the same
 pattern to your project's `.gitignore` if you're running ralph against

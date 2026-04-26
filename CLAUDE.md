@@ -76,6 +76,11 @@ Inside the container, `save-patch [name]` rolls up any uncommitted work into a s
 - **Executor** (Sonnet) — implements current slice, commits, runs tests via the `test-runner` Haiku sub-agent.
 - **Reviewer** (Opus) — periodic outside eye, two modes: mid-task (drift inside one slice) and outer-cycle (drift across N planner cycles).
 
+Two init paths produce `implementation_plan.md` before running `ralph.sh`:
+
+- **Simple tasks** (bug fix, single feature): `ralph-init-simple.sh "description"` — Sonnet reads the codebase and produces a proportionate 1–3 phase plan.
+- **Complex projects** (new app, multi-phase rewrite): use `description_prompt.md` as a sub-agent to produce a spec file, then `ralph-init.sh spec.md` — Opus produces a full structured plan.
+
 Memory files (`STATUS.md`, `DECISIONS.md`, `PROBLEMS.md`, `CURRENT_TASK.md`) are runtime state in `/app`; entrypoint excludes them from git so they don't end up in patches. Resume via `--resume` reads `.ralph/phase` to re-enter at the right point. See `ralph/README.md` for prompts, modes, env-var matrix, and resume semantics.
 
 `run_tests.sh` (this repo's own tests, not a project's) tests `ralph.sh`'s argument parser and resume flow using a stub `claude` on `PATH`. It deliberately doesn't `set -e` (it expects non-zero exits in some cases).
