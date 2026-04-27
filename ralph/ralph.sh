@@ -54,6 +54,10 @@ set -euo pipefail
 #                        on each subsequent failure (default: 30).
 #   RETRY_MAX_DELAY    — cap on per-retry backoff in seconds
 #                        (default: 900 = 15 min).
+#   TEST_TIMEOUT       — seconds before ./run_tests.sh is killed (default: 900).
+#                        Set to 0 to disable.
+#   CLAUDE_TIMEOUT     — seconds before a single `claude -p` call is killed and
+#                        retried (default: 5400). Set to 0 to disable.
 # ──────────────────────────────────────────────────────────────────────
 
 PLAN="${1:?Usage: $0 <implementation_plan.md> [--sonnet-only] [--resume]}"
@@ -94,6 +98,8 @@ CLAUDE_FLAGS="${CLAUDE_FLAGS:-}"
 RETRY_MAX_ATTEMPTS="${RETRY_MAX_ATTEMPTS:-30}"
 RETRY_BASE_DELAY="${RETRY_BASE_DELAY:-30}"
 RETRY_MAX_DELAY="${RETRY_MAX_DELAY:-900}"
+TEST_TIMEOUT="${TEST_TIMEOUT:-900}"
+CLAUDE_TIMEOUT="${CLAUDE_TIMEOUT:-5400}"
 
 # The installed `claude` CLI supports --output-format stream-json (with
 # --print --verbose), but that emits JSON-wrapped chunks which are not ideal
@@ -194,8 +200,18 @@ run_tests() {
   # it next. Non-fatal: broken tests are information for the planner, not a
   # loop abort.
   if [[ -x ./run_tests.sh ]]; then
-    log "  Running tests via ./run_tests.sh"
-    ./run_tests.sh > test_results.txt 2>&1 || true
+    if (( TEST_TIMEOUT > 0 )); then
+      log "  Running tests via ./run_tests.sh (timeout: ${TEST_TIMEOUT}s)"
+      local rc=0
+      timeout "$TEST_TIMEOUT" ./run_tests.sh > test_results.txt 2>&1 || rc=$?
+      if (( rc == 124 )); then
+        log "  Tests timed out after ${TEST_TIMEOUT}s"
+        printf '(run_tests.sh timed out after %ss)\n' "$TEST_TIMEOUT" >> test_results.txt
+      fi
+    else
+      log "  Running tests via ./run_tests.sh"
+      ./run_tests.sh > test_results.txt 2>&1 || true
+    fi
   else
     log "  No run_tests.sh yet — executor has not set up test harness"
     echo "(run_tests.sh not present — executor has not set up test harness yet)" > test_results.txt
@@ -225,7 +241,13 @@ call_claude() {
 
   while :; do
     attempt=$((attempt + 1))
-    if claude "$@" < "$tmp" 2>>"$LOG" | tee -a "$LOG"; then
+    local call_rc=0
+    if (( CLAUDE_TIMEOUT > 0 )); then
+      timeout "$CLAUDE_TIMEOUT" claude "$@" < "$tmp" 2>>"$LOG" | tee -a "$LOG" || call_rc=$?
+    else
+      claude "$@" < "$tmp" 2>>"$LOG" | tee -a "$LOG" || call_rc=$?
+    fi
+    if (( call_rc == 0 )); then
       rc=0
       break
     fi
@@ -234,7 +256,11 @@ call_claude() {
       rc=1
       break
     fi
-    log "  claude failed on attempt $attempt/$RETRY_MAX_ATTEMPTS — sleeping ${delay}s before retry"
+    if (( CLAUDE_TIMEOUT > 0 && call_rc == 124 )); then
+      log "  claude timed out after ${CLAUDE_TIMEOUT}s on attempt $attempt/$RETRY_MAX_ATTEMPTS — sleeping ${delay}s before retry"
+    else
+      log "  claude failed on attempt $attempt/$RETRY_MAX_ATTEMPTS — sleeping ${delay}s before retry"
+    fi
     sleep "$delay"
     delay=$(( delay * 2 ))
     (( delay > RETRY_MAX_DELAY )) && delay=$RETRY_MAX_DELAY
