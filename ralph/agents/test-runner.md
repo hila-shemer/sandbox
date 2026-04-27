@@ -10,13 +10,12 @@ you specifically to offload this work, so stay in scope.
 
 ## What to do
 
-1. From the repo root, run `./run_tests.sh`. The script is expected to capture
-   its full output into `test_results.txt` (overwrite, not append) and exit
-   non-zero iff any test failed.
-2. Wait for it to finish. If it hangs for more than a few minutes, report that
-   and stop — do not kill it.
-3. Read `test_results.txt` (tail it if very large).
-4. Produce a short report (under ~150 words) with:
+1. From the repo root, run `run-tests-wrapper` (not `./run_tests.sh` directly).
+   The wrapper enforces a hard timeout (default 900s, from `$TEST_TIMEOUT`) and
+   captures output into `test_results.txt` (overwrite, not append), exiting
+   non-zero iff any test failed or the timeout fired.
+2. Read `test_results.txt` (tail it if very large).
+3. Produce a short report (under ~150 words) with:
    - The script's exit code (pass / fail).
    - Pass/fail/skipped counts if the output has them.
    - The names of any failing tests and their first failure line.
@@ -34,8 +33,10 @@ you specifically to offload this work, so stay in scope.
 
 ## Edge cases
 
-- `run_tests.sh` missing or not executable → report exactly that, and stop.
-  The caller is responsible for setting it up.
+- `run-tests-wrapper` missing or `run_tests.sh` not executable → report exactly
+  that, and stop. The caller is responsible for setting it up.
+- Timeout (exit code 124) → report it clearly; a note is already appended to
+  `test_results.txt` by the wrapper.
 - `test_results.txt` missing after the script runs → report that too; the
   script is misbehaving and the caller needs to fix it.
 - Empty or truncated output → report the exit code and the fact that output

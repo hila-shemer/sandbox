@@ -1,0 +1,22 @@
+#!/bin/bash
+# Hard-timeout wrapper around ./run_tests.sh.
+# Called by the test-runner sub-agent so a hanging test suite can't stall
+# the ralph loop indefinitely. TEST_TIMEOUT is inherited from the environment
+# (ralph.sh exports it); falls back to 900s if called standalone.
+set -euo pipefail
+
+TIMEOUT="${TEST_TIMEOUT:-900}"
+
+if [[ ! -x ./run_tests.sh ]]; then
+  echo "run_tests.sh not found or not executable" >&2
+  exit 1
+fi
+
+rc=0
+timeout "$TIMEOUT" ./run_tests.sh "$@" || rc=$?
+
+if (( rc == 124 )); then
+  printf '(run_tests.sh timed out after %ss)\n' "$TIMEOUT" >> test_results.txt
+fi
+
+exit $rc
