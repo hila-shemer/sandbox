@@ -29,6 +29,10 @@ set -euo pipefail
 #   MAX_OUTER          — max planner cycles (default: 50)
 #   MAX_FLAT           — max Sonnet iterations in --sonnet-only flat mode
 #                        before aborting with nonzero exit (default: 100)
+#   MAX_SESSION_TURNS  — max agentic turns per executor session via
+#                        --max-turns (default: 40, 0 = no limit). Caps how
+#                        far a single session can run; the inner loop
+#                        continues normally on the next iteration.
 #   REVIEW_INTERVAL    — reviewer call every N executor iterations inside
 #                        a single task slice (default: 4, 0=disable).
 #                        Rarely fires in practice — Sonnet usually finishes
@@ -89,6 +93,7 @@ MAX_OUTER="${MAX_OUTER:-50}"
 MAX_FLAT="${MAX_FLAT:-100}"
 REVIEW_INTERVAL="${REVIEW_INTERVAL:-4}"
 OUTER_REVIEW_INTERVAL="${OUTER_REVIEW_INTERVAL:-3}"
+MAX_SESSION_TURNS="${MAX_SESSION_TURNS:-40}"
 # LOG is the unified per-run log. It receives both status markers from log()
 # and the tee'd stdout of every `claude -p` call, so a single `tail -f` gives
 # the full narrative. Default is timestamped in main() — override with
@@ -676,8 +681,12 @@ run_sonnet() {
     log "  Sonnet iteration $inner / $MAX_INNER"
     run_log_header "Sonnet iteration $inner / $MAX_INNER"
 
+    local turns_arg=()
+    if (( MAX_SESSION_TURNS > 0 )); then
+      turns_arg=(--max-turns "$MAX_SESSION_TURNS")
+    fi
     cat "$SONNET_PREFIX" "$task_file" "$SONNET_SUFFIX" \
-      | call_claude -p $CLAUDE_FLAGS --model "$SONNET_MODEL"
+      | call_claude -p $CLAUDE_FLAGS "${turns_arg[@]}" --model "$SONNET_MODEL"
 
     check_memory_files_location
 
