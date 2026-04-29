@@ -70,9 +70,13 @@ Write a new `CURRENT_TASK.md` that describes the next chunk of work for the
 executor. This file IS the prompt the executor will work from, so write it as
 a clear, actionable specification:
 
-- **Scope**: One coherent unit of work that the executor can complete in a
-  handful of iterations. Not too small (wasted planning cycles), not too large
-  (executor loses focus or runs out of context).
+- **Scope**: 2–3 related deliverables that the executor can complete
+  sequentially. Claude Code makes 30–50 tool calls per session — it reads
+  files, edits, runs tests, debugs failures, and iterates, all without
+  returning to you. A task that could be described as "add one function" or
+  "fix one bug" is almost always too small. Prefer scoping to an entire
+  feature, a feature plus its tests, or a group of 3–5 related/co-located
+  bugs plus verification that adjacent paths don't regress.
 - **Concrete deliverables**: What files to create/modify, what behavior to
   implement, what tests to write or pass.
 - **Context**: Any architectural decisions, constraints, or dependencies the

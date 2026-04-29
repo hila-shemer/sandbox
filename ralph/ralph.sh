@@ -5,15 +5,15 @@ set -euo pipefail
 # ralph.sh — autonomous implementation loop
 #
 # Three-role architecture:
-#   Planner  (Sonnet): decomposes plan into task slices
+#   Planner  (Opus)  : decomposes plan into task slices
 #   Executor (Sonnet): implements the current task slice
 #   Reviewer (Opus)  : periodic outside-eye review, catches drift
 #
 # The reviewer is called in two places, both periodic:
-#   - mid-task (inside the executor's inner loop), to catch Sonnet drift
+#   - mid-task (inside the executor's inner loop), to catch executor drift
 #     within a single task slice
-#   - outer-cycle (between planner cycles), to catch Sonnet-on-Sonnet
-#     drift across a window of planner cycles
+#   - outer-cycle (between planner cycles), to catch planner drift
+#     across a window of planner cycles
 #
 # Usage:
 #   ./ralph.sh <implementation_plan.md>
@@ -22,7 +22,7 @@ set -euo pipefail
 #
 # Environment variables:
 #   RALPH_DIR          — directory containing prompt files (default: script dir)
-#   PLANNER_MODEL      — model for the planner (default: sonnet)
+#   PLANNER_MODEL      — model for the planner (default: opus)
 #   SONNET_MODEL       — model for execution (default: sonnet)
 #   OPUS_MODEL         — model for the reviewer (default: opus)
 #   MAX_INNER          — max Sonnet iterations per task (default: 8)
@@ -81,7 +81,7 @@ fi
 # Resolve prompt directory (where the .md prompt files live)
 RALPH_DIR="${RALPH_DIR:-$(cd "$(dirname "$0")" && pwd)}"
 
-PLANNER_MODEL="${PLANNER_MODEL:-sonnet}"
+PLANNER_MODEL="${PLANNER_MODEL:-opus}"
 SONNET_MODEL="${SONNET_MODEL:-sonnet}"
 OPUS_MODEL="${OPUS_MODEL:-opus}"
 MAX_INNER="${MAX_INNER:-8}"
