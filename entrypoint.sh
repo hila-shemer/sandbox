@@ -28,7 +28,7 @@ fi
 # --dangerously-skip-permissions) survive restarts.
 if [ -d /host-claude ]; then
     mkdir -p /home/dev/.claude
-    for item in CLAUDE.md agents; do
+    for item in CLAUDE.md memory agents; do
         src="/host-claude/$item"
         dst="/home/dev/.claude/$item"
         [ -e "$src" ] && cp -r "$src" "$dst"
