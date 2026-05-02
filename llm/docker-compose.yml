@@ -25,4 +25,4 @@ volumes:
     external: true
     name: claude-llm-home
   claude-app:
-    name: "claude-app-${PROJECT_NAME}"
+    name: "claude-app-${PROJECT_NAME}${CONTAINER_NAME_SUFFIX:-}"

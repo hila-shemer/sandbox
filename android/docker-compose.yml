@@ -39,4 +39,4 @@ volumes:
     name: claude-android-home
   cf-images:
   claude-app:
-    name: "claude-app-${PROJECT_NAME}"
+    name: "claude-app-${PROJECT_NAME}${CONTAINER_NAME_SUFFIX:-}"

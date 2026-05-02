@@ -8,10 +8,10 @@
 # timestamp.
 set -e
 
-cd /app
+cd "${PROJECT_DIR:-/app}"
 
 if ! git rev-parse baseline >/dev/null 2>&1; then
-    echo "save-patch: no 'baseline' tag in /app — is this running inside a sandbox container?" >&2
+    echo "save-patch: no 'baseline' tag — is this running inside a sandbox container?" >&2
     exit 1
 fi
 

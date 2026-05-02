@@ -1,6 +1,11 @@
 #!/bin/bash
 set -e
 
+# PROJECT_DIR is the host project path, passed in via compose environment.
+# It doubles as the container's working directory so Claude's project-memory
+# key matches the host's, letting host memories propagate into the container.
+: "${PROJECT_DIR:=/app}"
+
 # Keep Claude Code CLI up to date. The base image bakes a version in at /usr/bin,
 # but it drifts as Anthropic releases new versions. Install a fresh copy into a
 # dev-writable prefix on the persistent home volume — that directory sits ahead
@@ -37,6 +42,18 @@ if [ -d /host-claude ]; then
             cp /host-claude/settings.json "$dst"
         fi
     fi
+
+    # Sync project memories from host so the container benefits from accumulated
+    # knowledge. The project memory key is the working-directory path with '/'
+    # replaced by '-'. Only copied on first init — preserves container-accumulated
+    # memories on subsequent restarts.
+    encoded_path=$(printf '%s' "$PROJECT_DIR" | tr '/' '-')
+    host_mem="/host-claude/projects/${encoded_path}/memory"
+    dst_project="/home/dev/.claude/projects/${encoded_path}"
+    if [ -d "$host_mem" ] && [ ! -d "${dst_project}/memory" ]; then
+        mkdir -p "$dst_project"
+        cp -r "$host_mem" "$dst_project/"
+    fi
 fi
 
 # Install ralph-shipped sub-agents (e.g. test-runner, a Haiku agent used to
@@ -62,13 +79,13 @@ You are running inside a Docker sandbox. Conventions specific to this environmen
 
 - **Emit patches with `save-patch [name]`.** This exports your commits since
   the `baseline` tag as a `git format-patch` series into `/output/<name>/`,
-  which is bind-mounted to the host. Any uncommitted work (staged, unstaged,
-  untracked) is rolled up into a final commit before export, so nothing is
+  which is bind-mounted to the host. Any uncommitted changes (staged, unstaged,
+  untracked) are rolled up into a final commit before export, so nothing is
   lost. Commit your work semantically as you go — those commit messages land
   on the host. Apply on host with `git am /output/<name>/*.patch`.
 - **Scratch files live in `/home/dev/notes/`** (bind-mounted to the host). Put
-  plans, design notes, TODOs there. It's outside `/app`, so nothing there
-  appears in patches.
+  plans, design notes, TODOs there. It's outside the project dir, so nothing
+  there appears in patches.
 - **`baseline`** is a git tag on the commit made when the container started.
   Your delta from it = what you have changed. `git diff baseline` to inspect.
 - **GUI apps render to `Xvfb :99`** (started by the entrypoint along with a
@@ -108,22 +125,22 @@ fi
 
 # Initialize a fresh git repo from the copied source so the container
 # has a real git history to commit against, isolated from the host repo.
-# On first use (or after `sandbox.sh clear`), the /app volume is empty —
+# On first use (or after `sandbox.sh clear`), the project volume is empty —
 # seed it from the image copy before initialising git.
-if [ ! -d /app/.git ]; then
-    cp -a /app-seed/. /app/
-    git -C /app init -q -b main
-    git -C /app config user.email "container@sandbox"
-    git -C /app config user.name "Sandbox Container"
-    git -C /app add .
-    git -C /app commit -q -m "baseline"
-    git -C /app tag baseline
+if [ ! -d "$PROJECT_DIR/.git" ]; then
+    cp -a /app-seed/. "$PROJECT_DIR/"
+    git -C "$PROJECT_DIR" init -q -b main
+    git -C "$PROJECT_DIR" config user.email "container@sandbox"
+    git -C "$PROJECT_DIR" config user.name "Sandbox Container"
+    git -C "$PROJECT_DIR" add .
+    git -C "$PROJECT_DIR" commit -q -m "baseline"
+    git -C "$PROJECT_DIR" tag baseline
 fi
 
 # Exclude ralph's runtime memory files from git without touching the project's
 # tracked .gitignore. `save-patch` does `git add -A`, so anything not excluded
 # here would otherwise leak into exported patches.
-cat >> /app/.git/info/exclude <<'EOF'
+cat >> "$PROJECT_DIR/.git/info/exclude" <<'EOF'
 # ralph runtime memory (autonomous loop)
 STATUS.md
 DECISIONS.md
@@ -182,4 +199,5 @@ if [ -n "$ADB_TARGET" ]; then
     done
 fi
 
+cd "$PROJECT_DIR"
 exec "$@"

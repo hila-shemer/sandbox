@@ -25,6 +25,7 @@ FROM ${BASE_IMAGE}
 # Create non-root user matching host UID (keeps volume-mounted file ownership sane)
 ARG HOST_UID=1000
 ARG HOST_GID=1000
+ARG PROJECT_DIR=/app
 RUN if getent passwd ${HOST_UID} > /dev/null; then \
         usermod -l dev -d /home/dev -m $(getent passwd ${HOST_UID} | cut -d: -f1); \
     else \
@@ -35,7 +36,8 @@ RUN if getent passwd ${HOST_UID} > /dev/null; then \
     else \
         groupadd -g ${HOST_GID} dev; \
     fi && \
-    mkdir -p /app /app-seed && chown dev:dev /app /app-seed
+    mkdir -p /app /app-seed && chown dev:dev /app /app-seed && \
+    mkdir -p "${PROJECT_DIR}" && chown dev:dev "${PROJECT_DIR}"
 
 COPY --from=source --chown=dev:dev /out /app-seed
 

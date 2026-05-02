@@ -12,8 +12,11 @@ services:
         HOST_UID: "${HOST_UID:-1000}"
         HOST_GID: "${HOST_GID:-1000}"
         REGISTRY: "${REGISTRY:-ghcr.io/hila-shemer}"
+        PROJECT_DIR: "${PROJECT_DIR}"
+    environment:
+      - PROJECT_DIR=${PROJECT_DIR}
     volumes:
-      - claude-app:/app
+      - claude-app:${PROJECT_DIR}
       - ${SANDBOX_DIR}/entrypoint.sh:/entrypoint.sh:ro,z
       - ${SANDBOX_DIR}/save-patch:/usr/local/bin/save-patch:ro,z
       - ${SANDBOX_DIR}/screenshot:/usr/local/bin/screenshot:ro,z
