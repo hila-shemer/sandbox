@@ -11,13 +11,24 @@ ARG BASE_IMAGE=${REGISTRY}/claude-loop-base:latest
 # --- Stage 1: extract git-tracked files from build context ---
 # Uses `git ls-files` so the copied tree matches the repo's tracked files
 # (including uncommitted modifications), without hardcoded file lists.
+# Edge cases (this stage is ephemeral — only /out is carried into Stage 2, the
+# .git of /src is discarded, so `git add -A` here has no lasting side effect):
+#   - files present but nothing tracked (e.g. unpacked archive, empty index):
+#     `git add -A` so they get copied.
+#   - truly empty context: seed a placeholder so the entrypoint has something to
+#     commit as `baseline` (an empty `cp` would otherwise exit 123).
 FROM ${REGISTRY}/claude-loop-base:latest AS source
 WORKDIR /src
 COPY . /src
 RUN git config --global --add safe.directory /src && \
     mkdir -p /out && \
     cd /src && \
-    git ls-files | xargs cp --parents -t /out
+    if [ -z "$(git ls-files)" ]; then git add -A 2>/dev/null || true; fi && \
+    if [ -n "$(git ls-files)" ]; then \
+        git ls-files -z | xargs -0 cp --parents -t /out; \
+    else \
+        printf '%s\n' '# Sandbox seed placeholder' 'The build context had no git-tracked files; commit files and rebuild to extract your project.' > /out/DEMO.md; \
+    fi
 
 # --- Stage 2: final image ---
 FROM ${BASE_IMAGE}

@@ -28,10 +28,14 @@ fi
 # --dangerously-skip-permissions) survive restarts.
 if [ -d /host-claude ]; then
     mkdir -p /home/dev/.claude
-    for item in CLAUDE.md memory agents; do
+    [ -f /host-claude/CLAUDE.md ] && cp /host-claude/CLAUDE.md /home/dev/.claude/CLAUDE.md
+    for item in memory agents; do
         src="/host-claude/$item"
         dst="/home/dev/.claude/$item"
-        [ -e "$src" ] && cp -r "$src" "$dst"
+        if [ -d "$src" ]; then
+            mkdir -p "$dst"
+            cp -r "$src/." "$dst/"
+        fi
     done
     if [ -f /host-claude/settings.json ]; then
         dst=/home/dev/.claude/settings.json
@@ -50,9 +54,9 @@ if [ -d /host-claude ]; then
     encoded_path=$(printf '%s' "$PROJECT_DIR" | tr '/' '-')
     host_mem="/host-claude/projects/${encoded_path}/memory"
     dst_project="/home/dev/.claude/projects/${encoded_path}"
-    if [ -d "$host_mem" ] && [ ! -d "${dst_project}/memory" ]; then
-        mkdir -p "$dst_project"
-        cp -r "$host_mem" "$dst_project/"
+    if [ -d "$host_mem" ]; then
+        mkdir -p "${dst_project}/memory"
+        cp -r "$host_mem/." "${dst_project}/memory/"
     fi
 fi
 
@@ -133,7 +137,7 @@ if [ ! -d "$PROJECT_DIR/.git" ]; then
     git -C "$PROJECT_DIR" config user.email "container@sandbox"
     git -C "$PROJECT_DIR" config user.name "Sandbox Container"
     git -C "$PROJECT_DIR" add .
-    git -C "$PROJECT_DIR" commit -q -m "baseline"
+    git -C "$PROJECT_DIR" commit -q --allow-empty -m "baseline"
     git -C "$PROJECT_DIR" tag baseline
 fi
 

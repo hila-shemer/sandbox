@@ -57,6 +57,15 @@ fi
 compose="$SANDBOX_DIR/$variant/docker-compose.yml"
 service="claude-$variant"
 
+# Name the kitty window before we exec into docker. After the exec the shell is
+# gone, so kitty's shell integration can't report the command any more and falls
+# back to the foreground process name - which is why every container window was
+# just "docker". An OSC title set here survives the exec; kitty holds it until
+# the next prompt. 🐳 + variant·project·name keeps concurrent containers distinct.
+set_window_title() {
+    printf '\033]2;🐳 %s\007' "${variant}·${PROJECT_NAME}${CONTAINER_NAME:+·$CONTAINER_NAME}"
+}
+
 case "$cmd" in
     run)
         mkdir -p "$PROJECT_DIR/patches" "$PROJECT_DIR/.notes"
@@ -66,6 +75,7 @@ case "$cmd" in
             echo "Started: $cid"
             echo "Logs:    docker logs -f $cid"
         else
+            set_window_title
             exec docker compose -f "$compose" run --rm "$service" "${EXTRA_ARGS[@]}"
         fi
         ;;
@@ -81,6 +91,7 @@ case "$cmd" in
             echo "No running ${service}${CONTAINER_NAME:+ (name: $CONTAINER_NAME)} container found" >&2
             exit 1
         fi
+        set_window_title
         exec docker exec -it "$cid" bash
         ;;
     stop)
