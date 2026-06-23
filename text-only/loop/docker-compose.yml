@@ -1,0 +1,16 @@
+services:
+  claude-loop:
+    extends:
+      file: ../docker-compose.base.yml
+      service: claude-common
+    image: claude-loop
+    volumes:
+      - claude-loop-home:/home/dev   # persists credentials and shell state across runs
+    mem_limit: 32g
+
+volumes:
+  claude-loop-home:
+    external: true
+    name: claude-loop-home
+  claude-app:
+    name: "claude-app-${PROJECT_NAME}${CONTAINER_NAME_SUFFIX:-}"

@@ -1,0 +1,26 @@
+#!/bin/bash
+# screenshot [name]
+#
+# Captures the X11 display ($DISPLAY, default :99 set by entrypoint) to
+# /tmp/screen-<name>.png and prints the path. The entrypoint starts Xvfb :99
+# with fluxbox so GUI apps inside the container render headlessly; Claude
+# (multimodal) can Read the PNG directly to see what the app looks like.
+#
+# Copy to /home/dev/notes/ if you want the host to see the screenshot too —
+# /tmp is container-local.
+set -e
+
+if [ -z "${DISPLAY:-}" ]; then
+    echo "screenshot: DISPLAY is unset — is Xvfb running?" >&2
+    exit 1
+fi
+
+if ! command -v scrot >/dev/null; then
+    echo "screenshot: scrot not installed (rebuild claude-loop-base?)" >&2
+    exit 1
+fi
+
+name="${1:-$(date +%Y%m%d-%H%M%S)}"
+out="/tmp/screen-${name}.png"
+scrot -o "$out"
+echo "$out"

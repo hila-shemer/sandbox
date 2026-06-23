@@ -1,0 +1,15 @@
+# Host-side credentials (never commit)
+.claude/
+.claude.json
+github-docker-token
+
+# Ignore any project patches accidentally placed here
+patches/
+
+# Per-run ralph logs (ralph.sh and ralph-init.sh). Each invocation creates
+# a timestamped file in the run directory; they are not useful history.
+ralph-*.log
+
+# Ralph's per-run state (e.g. .ralph/last_planner_sha marker).
+.ralph/
+.notes/

@@ -1,0 +1,44 @@
+services:
+  claude-android:
+    extends:
+      file: ../docker-compose.base.yml
+      service: claude-common
+    image: claude-android
+    build:
+    volumes:
+      - claude-android-home:/home/dev   # persists credentials, AVD, gradle cache across runs
+    environment:
+      - ADB_TARGET=cuttlefish:6520
+    mem_limit: 24g
+    depends_on:
+      cuttlefish:
+        condition: service_healthy
+
+  cuttlefish:
+    image: us-docker.pkg.dev/android-cuttlefish-artifacts/cuttlefish-orchestration/cuttlefish-orchestration:stable
+    privileged: true
+    volumes:
+      - ${SANDBOX_DIR}/android/entrypoint-cuttlefish.sh:/entrypoint-cuttlefish.sh:ro
+      - cf-images:/root/cf_images
+    entrypoint: ["/entrypoint-cuttlefish.sh"]
+    ports:
+      - "6520:6520"     # ADB (also reachable as cuttlefish:6520 from other services)
+      - "1443:1443"     # Web UI
+    shm_size: '8g'
+    mem_limit: 24g
+    healthcheck:
+      test: ["CMD-SHELL", "/root/cf_images/bin/adb -s 0.0.0.0:6520 shell getprop sys.boot_completed 2>/dev/null | grep -q 1"]
+      interval: 15s
+      timeout: 10s
+      start_period: 180s
+      retries: 10
+
+volumes:
+  claude-android-home:
+    external: true
+    name: claude-android-home
+  cf-images:
+    external: true
+    name: android_cf-images
+  claude-app:
+    name: "claude-app-${PROJECT_NAME}${CONTAINER_NAME_SUFFIX:-}"
