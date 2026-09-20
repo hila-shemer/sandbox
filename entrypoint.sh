@@ -39,11 +39,40 @@ if [ -d /host-claude ]; then
     done
     if [ -f /host-claude/settings.json ]; then
         dst=/home/dev/.claude/settings.json
+
+        # Drop hooks whose command hardcodes a path under the host's home before
+        # merging. That path cannot exist in here - the container user's home is
+        # /home/dev - so every such hook fails once per session event, silently.
+        # Measured on this host: 25 of 27 entries were in that state, 23 pointing
+        # at ~/.claude/claude-control/live and 2 at ~/proj/kgrab-cresume. Hooks
+        # written against $HOME or ~ are left alone; they resolve here.
+        #
+        # Filtering on the path rather than on a list of known-bad scripts means
+        # the next hook someone adds with a hardcoded path is caught too.
+        host_settings=/host-claude/settings.json
+        if [ -n "$HOST_HOME" ]; then
+            filtered=$(mktemp)
+            if jq --arg h "$HOST_HOME" '
+                    if .hooks == null then .
+                    else .hooks |= (
+                        with_entries(
+                            .value |= ( map(.hooks |= map(select((.command // "") | contains($h) | not)))
+                                      | map(select((.hooks // []) | length > 0)) )
+                        )
+                        | with_entries(select((.value // []) | length > 0))
+                    ) end' "$host_settings" > "$filtered" 2>/dev/null; then
+                host_settings="$filtered"
+            else
+                echo "[entrypoint] hook filter failed - using host settings unfiltered"
+                rm -f "$filtered"
+            fi
+        fi
+
         if [ -f "$dst" ]; then
-            jq -s '.[0] * .[1]' "$dst" /host-claude/settings.json > "$dst.merged" \
+            jq -s '.[0] * .[1]' "$dst" "$host_settings" > "$dst.merged" \
                 && mv "$dst.merged" "$dst"
         else
-            cp /host-claude/settings.json "$dst"
+            cp "$host_settings" "$dst"
         fi
     fi
 

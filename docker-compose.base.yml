@@ -15,6 +15,9 @@ services:
         PROJECT_DIR: "${PROJECT_DIR}"
     environment:
       - PROJECT_DIR=${PROJECT_DIR}
+      # Lets the entrypoint recognise hooks that hardcode a host path, which
+      # cannot resolve in here. See the settings.json filter in entrypoint.sh.
+      - HOST_HOME=${HOME}
     volumes:
       - claude-app:${PROJECT_DIR}
       - ${SANDBOX_DIR}/entrypoint.sh:/entrypoint.sh:ro,z
