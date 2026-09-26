@@ -74,5 +74,6 @@ fresh/fresh.sh <group> <repo-path> [-- CMD...]
 fresh/fresh.sh core ~/proj/claude-control
 ```
 
-`claude-loop-base` is used as-is and never rebuilt — it cannot be re-pulled
-(ghcr 403s anonymously), so the local copy may be the only one.
+`claude-loop-base` is used as-is and never rebuilt. If it is not local,
+`docker run` pulls it from spark's registry (`spark.tail0b59ad.ts.net:5000/flatpot`, the
+`REGISTRY` default).

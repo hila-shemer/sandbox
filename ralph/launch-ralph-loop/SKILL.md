@@ -29,12 +29,12 @@ Pick something descriptive: `fix-auth`, `add-tests`, `refactor-api`. It becomes 
 ### 3. Launch the container
 
 ```bash
-~/proj/sandbox/sandbox.sh run loop --name <loop-name> --detach -- ralph.sh <plan-file>
+~/proj/sandbox/sandbox.sh run loop --name <loop-name> --detach -- /opt/ralph/ralph.sh <plan-file>
 ```
 
 For example, from `~/proj/myproject`:
 ```bash
-~/proj/sandbox/sandbox.sh run loop --name fix-auth --detach -- ralph.sh implementation_plan.md
+~/proj/sandbox/sandbox.sh run loop --name fix-auth --detach -- /opt/ralph/ralph.sh implementation_plan.md
 ```
 
 The command prints a container ID and a `docker logs` command to tail output.
@@ -68,8 +68,25 @@ git am <PROJECT_DIR>/patches/<name>/*.patch
 ~/proj/sandbox/sandbox.sh attach loop --name <loop-name>
 ```
 
+## Gotchas (learned 2026-08-09, first sahara run)
+
+- **Absolute path is mandatory**: the entrypoint `exec`s the command without a
+  login shell, so `/opt/ralph` is not on PATH — bare `ralph.sh` dies with exit
+  127 and `--rm` deletes the container before you can read the error.
+- **Worktrees cannot be the launch dir**: the seed stage runs `git ls-files`
+  inside the build context, and a worktree's `.git` is a pointer file that is
+  dangling there (exit 128). Launch from a full checkout — a local
+  `git clone -q --branch <br> <repo> <dir>` is the cheap fix.
+- **The project volume mounts at the mirrored host path**, not `/app` — when
+  debugging, `ls $PROJECT_DIR` inside the container, not `/app`.
+
 ## Notes
 
 - Named containers share the `claude-loop-home` volume with the main container — they inherit the same Claude auth, settings, and accumulated project memories.
 - Each named container gets its own isolated `/app` volume, seeded fresh from the current project state at build time.
 - Multiple named loops can run concurrently against the same project.
+- **The base image comes from spark's registry** (`spark.tail0b59ad.ts.net:5000/flatpot/claude-loop-base:latest`,
+  the `REGISTRY` default in the sandbox). A host without a local copy pulls it
+  from there on the first build, which needs the tailnet. If that pull fails, check
+  `curl -sS https://spark.tail0b59ad.ts.net:5000/v2/` before blaming the plan. ghcr
+  is no fallback: it refuses anonymous pulls.

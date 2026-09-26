@@ -60,9 +60,13 @@ order.
 ```
 
 By default `build.sh` (and all Dockerfiles/compose files) use
-`ghcr.io/hila-shemer` as the registry. The published images are public, so
-clones work out of the box without credentials. To use your own registry, set
-`REGISTRY` before running:
+`spark.tail0b59ad.ts.net:5000/flatpot` as the registry - spark's registry, over the
+tailnet, with a publicly trusted certificate, so no `insecure-registries` or CA
+setup is needed. If the base image is not in the local image store, the build
+pulls it from there. The copy there was verified on 2026-09-26 as
+`claude-loop-base@sha256:b614be38b02cbd348a765fd68722910bb4354671e6f3f764e0b3f019c83e9037`.
+The old `ghcr.io/hila-shemer` images are no fallback: they refuse anonymous pulls
+("unauthorized"). To use another registry, set `REGISTRY` before running:
 
 ```
 REGISTRY=ghcr.io/yourname ./build.sh --push

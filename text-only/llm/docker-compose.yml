@@ -6,7 +6,7 @@ services:
     image: claude-llm
     build:
       args:
-        BASE_IMAGE: "${REGISTRY:-ghcr.io/hila-shemer}/claude-llm-base:latest"
+        BASE_IMAGE: "${REGISTRY:-spark.tail0b59ad.ts.net:5000/flatpot}/claude-llm-base:latest"
     volumes:
       - claude-llm-home:/home/dev   # persists credentials, HF model cache, shell state
     environment:

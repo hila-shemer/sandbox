@@ -106,4 +106,4 @@ exec docker run --rm "${TTY[@]}" \
     -v "${FRESH_DIR}/entrypoint-fresh.sh":/entrypoint.sh:ro \
     -v "${FRESH_DIR}/../save-patch":/usr/local/bin/save-patch:ro \
     --entrypoint /entrypoint.sh \
-    "${REGISTRY:-ghcr.io/hila-shemer}/claude-loop-base:latest" "${CMD[@]}"
+    "${REGISTRY:-spark.tail0b59ad.ts.net:5000/flatpot}/claude-loop-base:latest" "${CMD[@]}"
