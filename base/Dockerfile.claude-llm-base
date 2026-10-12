@@ -1,4 +1,4 @@
-ARG REGISTRY=spark.tail0b59ad.ts.net:5000/flatpot
+ARG REGISTRY=spark-5868.tail0b59ad.ts.net:5000/flatpot
 FROM ${REGISTRY}/claude-loop-base:latest
 
 # torch is installed from the CUDA 13.0 wheel index — PyTorch bundles its own

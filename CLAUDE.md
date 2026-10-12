@@ -26,7 +26,7 @@ Every change should keep the variants symmetric: shared logic in the root files,
 
 `sandbox.sh` derives `SANDBOX_DIR` from its own path and `PROJECT_DIR` from `$PWD` (or override). `HOST_UID`/`HOST_GID` default to the invoking user's IDs so bind-mounted files end up host-owned.
 
-The `claude-loop-base` image is **not** built by `docker compose build` — it lives on spark's registry `spark.tail0b59ad.ts.net:5000/flatpot/` (the `REGISTRY` default; ghcr refuses anonymous pulls) and is rebuilt manually via `build.sh`. A missing local copy is pulled from spark at build time. Per-project `docker compose build` only builds the thin Stage-2 image on top. The `loop` and `android` variants use `claude-loop-base`; the `llm` variant uses `claude-llm-base` (which itself extends `claude-loop-base`).
+The `claude-loop-base` image is **not** built by `docker compose build` — it lives on spark's registry `spark-5868.tail0b59ad.ts.net:5000/flatpot/` (the `REGISTRY` default; ghcr refuses anonymous pulls) and is rebuilt manually via `build.sh`. A missing local copy is pulled from spark at build time. Per-project `docker compose build` only builds the thin Stage-2 image on top. The `loop` and `android` variants use `claude-loop-base`; the `llm` variant uses `claude-llm-base` (which itself extends `claude-loop-base`).
 
 ## Architecture
 

@@ -85,8 +85,8 @@ git am <PROJECT_DIR>/patches/<name>/*.patch
 - Named containers share the `claude-loop-home` volume with the main container — they inherit the same Claude auth, settings, and accumulated project memories.
 - Each named container gets its own isolated `/app` volume, seeded fresh from the current project state at build time.
 - Multiple named loops can run concurrently against the same project.
-- **The base image comes from spark's registry** (`spark.tail0b59ad.ts.net:5000/flatpot/claude-loop-base:latest`,
+- **The base image comes from spark's registry** (`spark-5868.tail0b59ad.ts.net:5000/flatpot/claude-loop-base:latest`,
   the `REGISTRY` default in the sandbox). A host without a local copy pulls it
   from there on the first build, which needs the tailnet. If that pull fails, check
-  `curl -sS https://spark.tail0b59ad.ts.net:5000/v2/` before blaming the plan. ghcr
+  `curl -sS https://spark-5868.tail0b59ad.ts.net:5000/v2/` before blaming the plan. ghcr
   is no fallback: it refuses anonymous pulls.

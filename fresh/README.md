@@ -75,5 +75,5 @@ fresh/fresh.sh core ~/proj/claude-control
 ```
 
 `claude-loop-base` is used as-is and never rebuilt. If it is not local,
-`docker run` pulls it from spark's registry (`spark.tail0b59ad.ts.net:5000/flatpot`, the
+`docker run` pulls it from spark's registry (`spark-5868.tail0b59ad.ts.net:5000/flatpot`, the
 `REGISTRY` default).

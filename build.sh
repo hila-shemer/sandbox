@@ -2,7 +2,7 @@
 
 set -e
 
-REGISTRY=${REGISTRY:-spark.tail0b59ad.ts.net:5000/flatpot}
+REGISTRY=${REGISTRY:-spark-5868.tail0b59ad.ts.net:5000/flatpot}
 PUSH=0
 
 for arg in "$@"; do

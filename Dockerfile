@@ -5,7 +5,7 @@
 
 # Must be declared before the first FROM so it is in global scope and visible
 # to both FROM lines (Docker scoping rule for ARGs used in FROM).
-ARG REGISTRY=spark.tail0b59ad.ts.net:5000/flatpot
+ARG REGISTRY=spark-5868.tail0b59ad.ts.net:5000/flatpot
 ARG BASE_IMAGE=${REGISTRY}/claude-loop-base:latest
 
 # --- Stage 1: extract git-tracked files from build context ---

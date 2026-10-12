@@ -60,7 +60,7 @@ order.
 ```
 
 By default `build.sh` (and all Dockerfiles/compose files) use
-`spark.tail0b59ad.ts.net:5000/flatpot` as the registry - spark's registry, over the
+`spark-5868.tail0b59ad.ts.net:5000/flatpot` as the registry - spark's registry, over the
 tailnet, with a publicly trusted certificate, so no `insecure-registries` or CA
 setup is needed. If the base image is not in the local image store, the build
 pulls it from there. The copy there was verified on 2026-09-26 as
